@@ -39,4 +39,18 @@ data_timeseries <- data_order_actions %>%
     filter(action.date >= mdy("7/1/2014"),
            action.date <= mdy(end_date))
 
-dirr::save_rds("dir/tidy", "data_")
+dirr::save_rds("data/tidy", "data_")
+
+# data_timeseries %>%
+#     mutate(month = floor_date(action.date, unit = "month"),
+#            month_fy = month + months(6)) %>%
+#     filter(month < mdy("4/1/2017")) %>%
+#     group_by(month_fy) %>%
+#     summarize_at(c("pharmacy", "traditional"), sum) %>%
+#     # filter(action.date >= mdy("1/1/2016"), action.date < mdy("2/1/2017")) %>%
+#     gather(service, num, pharmacy:traditional) %>%
+#     ggplot(aes(x = month_fy, y = num)) +
+#     geom_line(aes(color = service), alpha = 0.6) +
+#     geom_smooth(aes(color = service), se = FALSE) +
+#     scale_color_brewer(palette = "Set1") +
+#     themebg::theme_bg()
