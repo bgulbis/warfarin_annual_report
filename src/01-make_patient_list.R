@@ -47,8 +47,12 @@ write_csv(save_pts, completed_pts, append = x)
 #   * Medications - Inpatient - Prompt
 #       - Medication (Generic): warfarin
 #   * Demographics
+#   * Diagnosis - ICD-9/10-CM
 #   * Labs - CBC
 #   * Labs - Coags
+#   * Labs - LFTs
+#   * Procedures - ICD-9/10-PCS
+#   * Warfarin Information
 
 # run EDW queries:
 #   * Identifiers
@@ -64,5 +68,3 @@ all_edw <- concat_encounters(persons$person.id)
 
 # run EDW queries:
 #   * Encounters - by Person ID
-
-dirr::gzip_files(dir_raw)
