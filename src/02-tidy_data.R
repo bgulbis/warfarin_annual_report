@@ -54,3 +54,6 @@ dirr::save_rds("data/tidy", "data_")
 #     geom_smooth(aes(color = service), se = FALSE) +
 #     scale_color_brewer(palette = "Set1") +
 #     themebg::theme_bg()
+
+raw_warfarin <- read_data(dir_raw, "^warfarin", FALSE) %>%
+    as.warfarin()
