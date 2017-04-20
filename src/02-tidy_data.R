@@ -8,6 +8,8 @@ library(edwr)
 dir_raw <- "data/raw"
 end_date <- "06/30/2017"
 
+source("helper_functions.R")
+
 # get all warfarin and consult orders
 data_order_actions <- read_data(dir_raw, "order-actions", FALSE) %>%
     as.order_action() %>%
@@ -35,25 +37,47 @@ data_timeseries <- data_order_actions %>%
     distinct() %>%
     group_by(action.date) %>%
     summarize_at(c("pharmacy", "traditional"), sum, na.rm = TRUE) %>%
-    mutate(traditional = traditional - pharmacy) %>%
+    mutate(traditional = traditional - pharmacy,
+           month = floor_date(action.date, unit = "month"),
+           fy_month = month + months(6),
+           fy = year(fy_month)) %>%
     filter(action.date >= mdy("7/1/2014"),
            action.date <= mdy(end_date))
 
-dirr::save_rds("data/tidy", "data_")
-
 # data_timeseries %>%
-#     mutate(month = floor_date(action.date, unit = "month"),
-#            month_fy = month + months(6)) %>%
 #     filter(month < mdy("4/1/2017")) %>%
-#     group_by(month_fy) %>%
+#     group_by(fy, month, fy_month) %>%
 #     summarize_at(c("pharmacy", "traditional"), sum) %>%
-#     # filter(action.date >= mdy("1/1/2016"), action.date < mdy("2/1/2017")) %>%
 #     gather(service, num, pharmacy:traditional) %>%
-#     ggplot(aes(x = month_fy, y = num)) +
-#     geom_line(aes(color = service), alpha = 0.6) +
-#     geom_smooth(aes(color = service), se = FALSE) +
+#     mutate(month_graph = ymd(paste("2016/", month(fy_month), "/01")),
+#            month_graph = month_graph - months(6)) %>%
+#     ggplot(aes(x = month_graph, y = num)) +
+#     # geom_line(aes(color = factor(fy)), alpha = 0.6) +
+#     geom_point(aes(color = factor(fy)), shape = 1) +
+#     geom_smooth(aes(color = factor(fy)), se = FALSE) +
+#     facet_wrap(~ service) +
 #     scale_color_brewer(palette = "Set1") +
 #     themebg::theme_bg()
 
 raw_warfarin <- read_data(dir_raw, "^warfarin", FALSE) %>%
     as.warfarin()
+
+# get new / previous data from anticoagulation goals
+warfarin_new <- raw_warfarin %>%
+    filter(warfarin.event == "warfarin therapy") %>%
+    arrange(millennium.id, desc(warfarin.datetime)) %>%
+    distinct(millennium.id, .keep_all = TRUE)
+
+
+warfarin_indications <- raw_warfarin %>%
+    filter(warfarin.event == "warfarin indication") %>%
+    make_indications() %>%
+    rowwise() %>%
+    mutate(other = sum(afib, dvt, pe, valve, stroke, vad, thrombus, hypercoag, prophylaxis) == 0) %>%
+    arrange(millennium.id, desc(warfarin.datetime)) %>%
+    distinct(millennium.id, .keep_all = TRUE)
+
+
+# save data --------------------------------------------
+
+dirr::save_rds("data/tidy", "data_")
