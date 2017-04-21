@@ -1,10 +1,6 @@
 
-make_indications <- function(raw.data) {
-    dots <- list(~warfarin.event == "warfarin indication",
-                 ~warfarin.result != "")
-
-    tidy <- dplyr::filter_(raw.data, .dots = dots) %>%
-        purrr::dmap_at("warfarin.result",
+make_indications <- function(d) {
+    tidy <- purrr::dmap_at(d, "warfarin.result",
                        stringr::str_replace_all,
                        pattern = "Deep vein thrombosis",
                        replacement = "D-V-T") %>%
@@ -34,9 +30,8 @@ make_indications <- function(raw.data) {
     dots <- purrr::map(find, find_string)
     nm <- c("afib", "dvt", "pe", "valve", "stroke", "vad", "thrombus",
             "hypercoag", "prophylaxis")
-    tidy <- dplyr::mutate_(tidy, .dots = setNames(dots, nm))
+    tidy <- dplyr::mutate_(tidy, .dots = setNames(dots, nm)) %>%
     # dots <- list(~sum(afib, dvt, pe, valve, stroke, vad, thrombus, hypercoag, prophylaxis) == 0)
     # tidy <- dplyr::mutate_(tidy, .dots = setNames(dots, "other"))
-    dots <- list(quote(-warfarin.result), quote(-warfarin.event))
-    tidy <- dplyr::select_(tidy, .dots = dots)
+        dplyr::select_(.dots = list(quote(-warfarin.result), quote(-warfarin.event)))
 }
