@@ -8,7 +8,34 @@ library(edwr)
 dir_raw <- "data/raw"
 end_date <- "06/30/2017"
 
-source("helper_functions.R")
+source("src/helper_functions.R")
+
+# demographics -----------------------------------------
+
+raw_demographics <- read_data(dir_raw, "demographics", FALSE) %>%
+    as.demographics()
+
+# med data ---------------------------------------------
+
+raw_meds <- read_data(dir_raw, "meds-inpt", FALSE) %>%
+    as.meds_inpt()
+
+meds_warfarin <- raw_meds %>%
+    filter(med == "warfarin") %>%
+    arrange(millennium.id, med.datetime)
+
+warfarin_dates <- meds_warfarin %>%
+    group_by(millennium.id) %>%
+    summarize_at("med.datetime", funs(warfarin_start = first,
+                                      warfarin_stop = last))
+
+warfarin_doses <- meds_warfarin %>%
+    dmap_at("med.datetime", floor_date, unit = "day") %>%
+    group_by(millennium.id, med.datetime) %>%
+    summarize_at("med.dose", sum) %>%
+    mutate(warfarin_day = difftime(med.datetime, first(med.datetime), units = "days") + 1)
+
+# orders -----------------------------------------------
 
 # get all warfarin and consult orders
 data_order_actions <- read_data(dir_raw, "order-actions", FALSE) %>%
@@ -23,7 +50,9 @@ data_order_actions <- read_data(dir_raw, "order-actions", FALSE) %>%
 patient_groups <- data_order_actions %>%
     group_by(millennium.id) %>%
     summarize_at("consult", sum) %>%
-    dmap_at("consult", ~ .x > 1)
+    dmap_at("consult", ~ .x > 1) %>%
+    dmap_at("consult", ~ if_else(.x, "pharmacy", "traditional")) %>%
+    rename(group = consult)
 
 # time series ------------------------------------------
 data_timeseries <- data_order_actions %>%
@@ -59,15 +88,47 @@ data_timeseries <- data_order_actions %>%
 #     scale_color_brewer(palette = "Set1") +
 #     themebg::theme_bg()
 
+# lab data ---------------------------------------------
+raw_labs <- read_data(dir_raw, "labs", FALSE) %>%
+    as.labs() %>%
+    tidy_data()
+
+labs_inr <- raw_labs %>%
+    filter(lab == "inr") %>%
+    left_join(warfarin_dates, by = "millennium.id") %>%
+    arrange(millennium.id, lab.datetime)
+
+inr_baseline <- labs_inr %>%
+    filter(lab.datetime <= warfarin_start) %>%
+    group_by(millennium.id) %>%
+    summarize_at("lab.result", funs(inr_admit = first, inr_baseline = last))
+
+# keep last INR prior to 1400 each day
+inr_daily <- labs_inr %>%
+    dmap_at(c("warfarin_start", "warfarin_stop"), floor_date, unit = "day") %>%
+    mutate(lab_date = floor_date(lab.datetime, unit = "day"),
+           warfarin_day = difftime(lab_date, warfarin_start, units = "days") + 1) %>%
+    filter(lab_date >= warfarin_start - days(1),
+           lab_date <= warfarin_stop + days(1),
+           hour(lab.datetime) <= 14) %>%
+    group_by(millennium.id, lab_date) %>%
+    arrange(millennium.id, warfarin_day, desc(lab.datetime)) %>%
+    distinct(millennium.id, warfarin_day, .keep_all = TRUE) %>%
+    group_by(millennium.id) %>%
+    select(millennium.id, inr = lab.result, censor.low, censor.high, warfarin_day)
+
+data_daily <- full_join(warfarin_doses, inr_daily, by = c("millennium.id", "warfarin_day")) %>%
+    arrange(millennium.id, warfarin_day)
+
+# warfarin information ---------------------------------
 raw_warfarin <- read_data(dir_raw, "^warfarin", FALSE) %>%
     as.warfarin()
 
-# get new / previous data from anticoagulation goals
-warfarin_new <- raw_warfarin %>%
+warfarin_initiation <- raw_warfarin %>%
     filter(warfarin.event == "warfarin therapy") %>%
     arrange(millennium.id, desc(warfarin.datetime)) %>%
-    distinct(millennium.id, .keep_all = TRUE)
-
+    distinct(millennium.id, .keep_all = TRUE) %>%
+    select(millennium.id, initiation = warfarin.result)
 
 warfarin_indications <- raw_warfarin %>%
     filter(warfarin.event == "warfarin indication") %>%
@@ -75,8 +136,13 @@ warfarin_indications <- raw_warfarin %>%
     rowwise() %>%
     mutate(other = sum(afib, dvt, pe, valve, stroke, vad, thrombus, hypercoag, prophylaxis) == 0) %>%
     arrange(millennium.id, desc(warfarin.datetime)) %>%
-    distinct(millennium.id, .keep_all = TRUE)
+    distinct(millennium.id, .keep_all = TRUE) %>%
+    select(-warfarin.datetime)
 
+data_warfarin <- patient_groups %>%
+    left_join(warfarin_dates, by = "millennium.id") %>%
+    left_join(warfarin_initiation, by = "millennium.id") %>%
+    left_join(warfarin_indications, by = "millennium.id")
 
 # save data --------------------------------------------
 
