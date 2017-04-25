@@ -108,17 +108,18 @@ inr_daily <- labs_inr %>%
     dmap_at(c("warfarin_start", "warfarin_stop"), floor_date, unit = "day") %>%
     mutate(lab_date = floor_date(lab.datetime, unit = "day"),
            warfarin_day = difftime(lab_date, warfarin_start, units = "days") + 1) %>%
-    filter(lab_date >= warfarin_start - days(1),
-           lab_date <= warfarin_stop + days(1),
+    filter(lab_date >= warfarin_start, # - days(1)
+           lab_date <= warfarin_stop, # + days(1)
            hour(lab.datetime) <= 14) %>%
     group_by(millennium.id, lab_date) %>%
     arrange(millennium.id, warfarin_day, desc(lab.datetime)) %>%
     distinct(millennium.id, warfarin_day, .keep_all = TRUE) %>%
     group_by(millennium.id) %>%
-    select(millennium.id, inr = lab.result, censor.low, censor.high, warfarin_day)
+    select(millennium.id, inr = lab.result, warfarin_day, lab_date) # censor.low, censor.high,
 
-data_daily <- full_join(warfarin_doses, inr_daily, by = c("millennium.id", "warfarin_day")) %>%
-    arrange(millennium.id, warfarin_day)
+data_daily <- full_join(warfarin_doses, inr_daily, by = c("millennium.id", "warfarin_day", "med.datetime" = "lab_date")) %>%
+    arrange(millennium.id, warfarin_day) %>%
+    dmap_at("med.dose", ~ coalesce(.x, 0))
 
 # warfarin information ---------------------------------
 raw_warfarin <- read_data(dir_raw, "^warfarin", FALSE) %>%
@@ -137,7 +138,10 @@ warfarin_indications <- raw_warfarin %>%
     # mutate(other = sum(afib, dvt, pe, valve, stroke, vad, thrombus, hypercoag, prophylaxis) == 0) %>%
     arrange(millennium.id, desc(warfarin.datetime)) %>%
     distinct(millennium.id, .keep_all = TRUE) %>%
-    select(-warfarin.datetime)
+    select(-warfarin.datetime) %>%
+    rowwise() %>%
+    mutate(indication_group = if_else(sum(dvt, pe, thrombus) >= 1, "vte",
+                                    if_else(sum(afib, stroke, valve, vad) >= 1, "cva_prevent", "other")))
 
 data_warfarin <- patient_groups %>%
     left_join(warfarin_dates, by = "millennium.id") %>%
