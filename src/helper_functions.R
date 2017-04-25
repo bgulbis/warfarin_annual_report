@@ -27,11 +27,11 @@ make_indications <- function(d) {
               "malig|anti(.)?phos|lupus|apla|hypercoag|deficien|leiden|fvl|factor v",
               "prophylax")
 
-    dots <- purrr::map(find, find_string)
+    dots <- list(~sum(afib, dvt, pe, valve, stroke, vad, thrombus, hypercoag, prophylaxis) == 0)
     nm <- c("afib", "dvt", "pe", "valve", "stroke", "vad", "thrombus",
             "hypercoag", "prophylaxis")
-    tidy <- dplyr::mutate_(tidy, .dots = setNames(dots, nm)) %>%
-    # dots <- list(~sum(afib, dvt, pe, valve, stroke, vad, thrombus, hypercoag, prophylaxis) == 0)
-    # tidy <- dplyr::mutate_(tidy, .dots = setNames(dots, "other"))
-        dplyr::select_(.dots = list(quote(-warfarin.result), quote(-warfarin.event)))
+    tidy <- dplyr::mutate_(tidy, .dots = setNames(purrr::map(find, find_string), nm)) %>%
+        dplyr::select_(.dots = list(quote(-warfarin.result), quote(-warfarin.event))) %>%
+        dplyr::rowwise() %>%
+        dplyr::mutate_(.dots = setNames(dots, "other"))
 }

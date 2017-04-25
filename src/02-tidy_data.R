@@ -133,8 +133,8 @@ warfarin_initiation <- raw_warfarin %>%
 warfarin_indications <- raw_warfarin %>%
     filter(warfarin.event == "warfarin indication") %>%
     make_indications() %>%
-    rowwise() %>%
-    mutate(other = sum(afib, dvt, pe, valve, stroke, vad, thrombus, hypercoag, prophylaxis) == 0) %>%
+    # rowwise() %>%
+    # mutate(other = sum(afib, dvt, pe, valve, stroke, vad, thrombus, hypercoag, prophylaxis) == 0) %>%
     arrange(millennium.id, desc(warfarin.datetime)) %>%
     distinct(millennium.id, .keep_all = TRUE) %>%
     select(-warfarin.datetime)
