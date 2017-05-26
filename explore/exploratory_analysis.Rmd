@@ -1,0 +1,71 @@
+---
+title: "Warfarin Dosing Service"
+subtitle: "Exploratory Data Analysis"
+author: "Brian Gulbis"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: 
+  html_document:
+    code_folding: hide
+    fig_caption: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r data, message=FALSE}
+library(tidyverse)
+library(plotly)
+library(themebg)
+
+x <- dirr::get_rds("../data/tidy")
+```
+
+```{r}
+data_daily %>%
+    filter(warfarin_day <= 10) %>%
+    dmap_at("warfarin_day", as.integer) %>%
+    left_join(data_warfarin[c("millennium.id", "group", "initiation", "indication_group")], by = "millennium.id") %>%
+    plot_ly(x = ~warfarin_day, y = ~med.dose) %>%
+    # add_markers(split = ~group, marker = list(symbol = "circle-open"))
+    add_boxplot(split = ~group)
+```
+
+```{r}
+p <- data_daily %>%
+    filter(warfarin_day <= 10) %>%
+    dmap_at("warfarin_day", as.integer) %>%
+    left_join(data_warfarin[c("millennium.id", "group", "initiation", "indication_group")], by = "millennium.id") %>%
+    ggplot(aes(x = factor(warfarin_day), y = med.dose, color = group)) +
+    geom_boxplot() +
+    theme_bg()
+
+ggplotly(p)
+```
+
+
+```{r}
+data_daily %>%
+    filter(warfarin_day <= 10,
+           med.dose > 0,
+           !is.na(inr)) %>%
+    # dmap_at("warfarin_day", as.integer) %>%
+    left_join(data_warfarin[c("millennium.id", "group", "initiation", "indication_group")], by = "millennium.id") %>%
+    plot_ly(x = ~med.dose, y = ~inr) %>%
+    add_markers(split = ~group, marker = list(symbol = "circle-open"))
+    # add_boxplot(split = ~group)
+```
+
+```{r}
+p <- data_daily %>%
+    filter(warfarin_day <= 10,
+           med.dose > 0,
+           !is.na(inr)) %>%
+    # dmap_at("warfarin_day", as.integer) %>%
+    left_join(data_warfarin[c("millennium.id", "group", "initiation", "indication_group")], by = "millennium.id") %>%
+    ggplot(aes(x = med.dose, y = inr)) +
+    geom_point(aes(color = group), shape = 1) +
+    theme_bg()
+
+ggplotly(p, dynamicTicks = TRUE)
+```
