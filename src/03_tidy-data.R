@@ -1,24 +1,27 @@
 # tidy data
 
 library(tidyverse)
+library(purrrlyr)
 library(lubridate)
 library(stringr)
 library(edwr)
+library(dirr)
 
 dir_raw <- "data/raw"
 end_date <- "06/30/2017"
+bucket <- "warfarin-annual-report"
 
 source("src/helper_functions.R")
 
+get_rds_s3(bucket, "data/raw/")
+
 # demographics -----------------------------------------
 
-raw_demographics <- read_data(dir_raw, "demographics", FALSE) %>%
-    as.demographics()
+raw_demographics <- as.demographics(demographics)
 
 # med data ---------------------------------------------
 
-raw_meds <- read_data(dir_raw, "meds-inpt", FALSE) %>%
-    as.meds_inpt()
+raw_meds <- as.meds_inpt(`meds-inpt`)
 
 meds_warfarin <- raw_meds %>%
     filter(med == "warfarin") %>%
@@ -38,7 +41,7 @@ warfarin_doses <- meds_warfarin %>%
 # orders -----------------------------------------------
 
 # get all warfarin and consult orders
-data_order_actions <- read_data(dir_raw, "order-actions", FALSE) %>%
+data_order_actions <- `order-actions` %>%
     as.order_action() %>%
     filter(!is.na(order),
            action.type == "Order" | action.type == "Complete",
@@ -89,7 +92,7 @@ data_timeseries <- data_order_actions %>%
 #     themebg::theme_bg()
 
 # lab data ---------------------------------------------
-raw_labs <- read_data(dir_raw, "labs", FALSE) %>%
+raw_labs <- labs %>%
     as.labs() %>%
     tidy_data()
 
@@ -122,8 +125,7 @@ data_daily <- full_join(warfarin_doses, inr_daily, by = c("millennium.id", "warf
     dmap_at("med.dose", ~ coalesce(.x, 0))
 
 # warfarin information ---------------------------------
-raw_warfarin <- read_data(dir_raw, "^warfarin", FALSE) %>%
-    as.warfarin()
+raw_warfarin <- as.warfarin(`warfarin-info`)
 
 warfarin_initiation <- raw_warfarin %>%
     filter(warfarin.event == "warfarin therapy") %>%
@@ -150,4 +152,7 @@ data_warfarin <- patient_groups %>%
 
 # save data --------------------------------------------
 
-dirr::save_rds("data/tidy", "data_")
+df <- list(data_daily, data_order_actions, data_timeseries, data_warfarin)
+nm <- c("data_daily", "data_order_actions", "data_timeseries", "data_warfarin")
+save_rds_s3(df, nm, bucket, "data/tidy/")
+# dirr::save_rds("data/tidy", "data_")
