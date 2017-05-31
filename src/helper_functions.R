@@ -1,10 +1,10 @@
 
 make_indications <- function(d) {
-    tidy <- purrr::dmap_at(d, "warfarin.result",
+    tidy <- purrrlyr::dmap_at(d, "warfarin.result",
                        stringr::str_replace_all,
                        pattern = "Deep vein thrombosis",
                        replacement = "D-V-T") %>%
-        purrr::dmap_at("warfarin.result",
+        purrrlyr::dmap_at("warfarin.result",
                        stringr::str_replace_all,
                        pattern = "Pulmonary embolism",
                        replacement = "P-E")
