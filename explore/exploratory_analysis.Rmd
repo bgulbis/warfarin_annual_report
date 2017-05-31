@@ -15,48 +15,30 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r data, message=FALSE}
 library(tidyverse)
+library(purrrlyr)
 library(plotly)
 library(themebg)
 
-x <- dirr::get_rds("../data/tidy")
+# x <- dirr::get_rds("../data/tidy")
+x <- dirr::get_rds_s3("warfarin-annual-report", "data/tidy/")
 ```
 
-```{r}
-data_daily %>%
-    filter(warfarin_day <= 10) %>%
-    dmap_at("warfarin_day", as.integer) %>%
-    left_join(data_warfarin[c("millennium.id", "group", "initiation", "indication_group")], by = "millennium.id") %>%
-    plot_ly(x = ~warfarin_day, y = ~med.dose) %>%
-    # add_markers(split = ~group, marker = list(symbol = "circle-open"))
-    add_boxplot(split = ~group)
-```
-
-```{r}
+```{r, fig.cap="Distribution of warfarin dose by day of therapy"}
 p <- data_daily %>%
     filter(warfarin_day <= 10) %>%
     dmap_at("warfarin_day", as.integer) %>%
     left_join(data_warfarin[c("millennium.id", "group", "initiation", "indication_group")], by = "millennium.id") %>%
     ggplot(aes(x = factor(warfarin_day), y = med.dose, color = group)) +
     geom_boxplot() +
+    xlab("Day of therapy") +
+    ylab("Warfarin dose (mg)") +
+    scale_color_brewer("Group", palette = "Set1") +
     theme_bg()
 
-ggplotly(p)
+ggplotly(p, dynamicTicks = TRUE)
 ```
 
-
-```{r}
-data_daily %>%
-    filter(warfarin_day <= 10,
-           med.dose > 0,
-           !is.na(inr)) %>%
-    # dmap_at("warfarin_day", as.integer) %>%
-    left_join(data_warfarin[c("millennium.id", "group", "initiation", "indication_group")], by = "millennium.id") %>%
-    plot_ly(x = ~med.dose, y = ~inr) %>%
-    add_markers(split = ~group, marker = list(symbol = "circle-open"))
-    # add_boxplot(split = ~group)
-```
-
-```{r}
+```{r, fig.cap="Relationship between warfarin dose and INR"}
 p <- data_daily %>%
     filter(warfarin_day <= 10,
            med.dose > 0,
@@ -65,6 +47,9 @@ p <- data_daily %>%
     left_join(data_warfarin[c("millennium.id", "group", "initiation", "indication_group")], by = "millennium.id") %>%
     ggplot(aes(x = med.dose, y = inr)) +
     geom_point(aes(color = group), shape = 1) +
+    xlab("Warfarin dose (mg)") +
+    ylab("INR") +
+    scale_color_brewer("Group", palette = "Set1") +
     theme_bg()
 
 ggplotly(p, dynamicTicks = TRUE)
