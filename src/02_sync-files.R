@@ -4,6 +4,9 @@ library(edwr)
 library(httr)
 library(dirr)
 
+# compress raw data files
+gzip_files()
+
 # prevent peer checking due to MH firewall
 set_config(config(ssl_verifypeer = 0L))
 
