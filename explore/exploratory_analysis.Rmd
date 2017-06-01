@@ -19,7 +19,11 @@ library(purrrlyr)
 library(plotly)
 library(themebg)
 
-# x <- dirr::get_rds("../data/tidy")
+# prevent peer checking due to MH firewall
+if (.Platform$OS.type == "windows") {
+    httr::set_config(httr::config(ssl_verifypeer = 0L))
+}
+
 x <- dirr::get_rds_s3("warfarin-annual-report", "data/tidy/")
 ```
 

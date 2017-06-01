@@ -7,6 +7,11 @@ library(stringr)
 library(edwr)
 library(dirr)
 
+# prevent peer checking due to MH firewall
+if (.Platform$OS.type == "windows") {
+    httr::set_config(httr::config(ssl_verifypeer = 0L))
+}
+
 dir_raw <- "data/raw"
 end_date <- "06/30/2017"
 bucket <- "warfarin-annual-report"

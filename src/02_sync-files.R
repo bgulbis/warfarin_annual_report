@@ -1,14 +1,15 @@
 library(aws.s3)
 library(tidyverse)
 library(edwr)
-library(httr)
 library(dirr)
 
 # compress raw data files
 gzip_files()
 
 # prevent peer checking due to MH firewall
-set_config(config(ssl_verifypeer = 0L))
+if (.Platform$OS.type == "windows") {
+    httr::set_config(httr::config(ssl_verifypeer = 0L))
+}
 
 bucket <- "warfarin-annual-report"
 read_dir <- "data/raw"
