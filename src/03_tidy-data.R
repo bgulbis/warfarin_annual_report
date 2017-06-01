@@ -22,7 +22,7 @@ get_rds_s3(bucket, "data/raw/")
 
 # demographics -----------------------------------------
 
-raw_demographics <- as.demographics(demographics)
+data_demographics <- as.demographics(demographics)
 
 # med data ---------------------------------------------
 
@@ -157,7 +157,9 @@ data_warfarin <- patient_groups %>%
 
 # save data --------------------------------------------
 
-df <- list(data_daily, data_order_actions, data_timeseries, data_warfarin)
-nm <- c("data_daily", "data_order_actions", "data_timeseries", "data_warfarin")
+df <- list(data_demographics, data_daily, data_order_actions, data_timeseries,
+           data_warfarin)
+nm <- c("data_demographics", "data_daily", "data_order_actions",
+        "data_timeseries", "data_warfarin")
 save_rds_s3(df, nm, bucket, "data/tidy/")
 # dirr::save_rds("data/tidy", "data_")
