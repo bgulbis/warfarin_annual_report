@@ -36,7 +36,7 @@ p <- data_daily %>%
     geom_boxplot() +
     xlab("Day of therapy") +
     ylab("Warfarin dose (mg)") +
-    scale_color_brewer("Group", palette = "Set1") +
+    scale_color_brewer("Group", palette = "Set1", labels = c("Pharmacy", "Traditional")) +
     theme_bg()
 
 ggplotly(p, dynamicTicks = TRUE)
@@ -46,6 +46,7 @@ ggplotly(p, dynamicTicks = TRUE)
 p <- data_daily %>%
     filter(warfarin_day <= 10,
            med.dose > 0,
+           med.dose <= 15,
            !is.na(inr)) %>%
     # dmap_at("warfarin_day", as.integer) %>%
     left_join(data_warfarin[c("millennium.id", "group", "initiation", "indication_group")], by = "millennium.id") %>%
@@ -53,7 +54,7 @@ p <- data_daily %>%
     geom_point(aes(color = group), shape = 1) +
     xlab("Warfarin dose (mg)") +
     ylab("INR") +
-    scale_color_brewer("Group", palette = "Set1") +
+    scale_color_brewer("Group", palette = "Set1", labels = c("Pharmacy", "Traditional")) +
     theme_bg()
 
 ggplotly(p, dynamicTicks = TRUE)
