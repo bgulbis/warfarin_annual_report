@@ -5,28 +5,31 @@ library(purrrlyr)
 library(lubridate)
 library(stringr)
 library(edwr)
-library(dirr)
+library(aws.s3)
+# library(dirr)
 
 # prevent peer checking due to MH firewall
 if (.Platform$OS.type == "windows") {
     httr::set_config(httr::config(ssl_verifypeer = 0L))
 }
 
-dir_raw <- "data/raw"
+dir_raw <- "data/raw/"
+dir_tidy <- "data/tidy/"
 end_date <- "06/30/2017"
 bucket <- "warfarin-annual-report"
+hdrs <- list(`x-amz-server-side-encryption` = "AES256")
 
 source("src/helper_functions.R")
 
-get_rds_s3(bucket, "data/raw/")
-
 # demographics -----------------------------------------
 
-data_demographics <- as.demographics(demographics)
+data_demographics <- s3readRDS(paste0(dir_raw, "demographics.Rds"), bucket) %>%
+    as.demographics()
 
 # med data ---------------------------------------------
 
-raw_meds <- as.meds_inpt(`meds-inpt`)
+raw_meds <- s3readRDS(paste0(dir_raw, "meds-inpt.Rds"), bucket) %>%
+    as.meds_inpt()
 
 meds_warfarin <- raw_meds %>%
     filter(med == "warfarin") %>%
@@ -46,7 +49,7 @@ warfarin_doses <- meds_warfarin %>%
 # orders -----------------------------------------------
 
 # get all warfarin and consult orders
-data_order_actions <- `order-actions` %>%
+data_order_actions <- s3readRDS(paste0(dir_raw, "order-actions.Rds"), bucket) %>%
     as.order_action() %>%
     filter(!is.na(order),
            action.type == "Order" | action.type == "Complete",
@@ -97,7 +100,7 @@ data_timeseries <- data_order_actions %>%
 #     themebg::theme_bg()
 
 # lab data ---------------------------------------------
-raw_labs <- labs %>%
+raw_labs <- s3readRDS(paste0(dir_raw, "labs.Rds"), bucket) %>%
     as.labs() %>%
     tidy_data()
 
@@ -130,7 +133,8 @@ data_daily <- full_join(warfarin_doses, inr_daily, by = c("millennium.id", "warf
     dmap_at("med.dose", ~ coalesce(.x, 0))
 
 # warfarin information ---------------------------------
-raw_warfarin <- as.warfarin(`warfarin-info`)
+raw_warfarin <- s3readRDS(paste0(dir_raw, "warfarin-info.Rds"), bucket) %>%
+    as.warfarin()
 
 warfarin_initiation <- raw_warfarin %>%
     filter(warfarin.event == "warfarin therapy") %>%
@@ -157,9 +161,27 @@ data_warfarin <- patient_groups %>%
 
 # save data --------------------------------------------
 
-df <- list(data_demographics, data_daily, data_order_actions, data_timeseries,
-           data_warfarin)
-nm <- c("data_demographics", "data_daily", "data_order_actions",
-        "data_timeseries", "data_warfarin")
-save_rds_s3(df, nm, bucket, "data/tidy/")
-# dirr::save_rds("data/tidy", "data_")
+s3saveRDS(data_demographics,
+          object = paste0(dir_tidy, "data_demographics.Rds"),
+          bucket = bucket,
+          headers = hdrs)
+
+s3saveRDS(data_order_actions,
+          object = paste0(dir_tidy, "data_order_actions.Rds"),
+          bucket = bucket,
+          headers = hdrs)
+
+s3saveRDS(data_timeseries,
+          object = paste0(dir_tidy, "data_timeseries.Rds"),
+          bucket = bucket,
+          headers = hdrs)
+
+s3saveRDS(data_daily,
+          object = paste0(dir_tidy, "data_daily.Rds"),
+          bucket = bucket,
+          headers = hdrs)
+
+s3saveRDS(data_warfarin,
+          object = paste0(dir_tidy, "data_warfarin.Rds"),
+          bucket = bucket,
+          headers = hdrs)
