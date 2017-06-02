@@ -16,6 +16,8 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r data, message=FALSE}
 library(tidyverse)
 library(purrrlyr)
+library(lubridate)
+library(forcats)
 library(plotly)
 library(themebg)
 library(aws.s3)
@@ -33,9 +35,19 @@ data_daily <- s3readRDS(paste0(dir_tidy, "data_daily.Rds"), bucket)
 data_warfarin <- s3readRDS(paste0(dir_tidy, "data_warfarin.Rds"), bucket)
 ```
 
-```{r, fig.cap="Distribution of warfarin dose by day of therapy"}
+# Questions
+
+1. Number of daily patients managed by pharmacy consult vs. traditional
+1. Which services are using consult service
+1. Which units are using consult service
+1. How does 2016 compare with 2015
+1. Indications for warfarin in each group
+
+```{r, fig.cap="Distribution of warfarin dose by day of therapy for FY17"}
 p <- data_daily %>%
-    filter(warfarin_day <= 10) %>%
+    filter(warfarin_day <= 10,
+           med.datetime >= mdy("7/1/2016", tz = "US/Central"),
+           med.datetime <= mdy("6/30/2017", tz = "US/Central")) %>%
     dmap_at("warfarin_day", as.integer) %>%
     left_join(data_warfarin[c("millennium.id", "group", "initiation", "indication_group")], by = "millennium.id") %>%
     ggplot(aes(x = factor(warfarin_day), y = med.dose, color = group)) +
@@ -48,12 +60,14 @@ p <- data_daily %>%
 ggplotly(p, dynamicTicks = TRUE)
 ```
 
-```{r, fig.cap="Relationship between warfarin dose and INR"}
+```{r, fig.cap="Relationship between warfarin dose and INR in FY17"}
 p <- data_daily %>%
     filter(warfarin_day <= 10,
            med.dose > 0,
            med.dose <= 15,
-           !is.na(inr)) %>%
+           !is.na(inr),
+           med.datetime >= mdy("7/1/2016", tz = "US/Central"),
+           med.datetime <= mdy("6/30/2017", tz = "US/Central")) %>%
     # dmap_at("warfarin_day", as.integer) %>%
     left_join(data_warfarin[c("millennium.id", "group", "initiation", "indication_group")], by = "millennium.id") %>%
     ggplot(aes(x = med.dose, y = inr)) +
@@ -65,3 +79,25 @@ p <- data_daily %>%
 
 ggplotly(p, dynamicTicks = TRUE)
 ```
+
+```{r}
+p <- data_warfarin %>%
+    filter(warfarin_start >= mdy("7/1/2016", tz = "US/Central"),
+           warfarin_start <= mdy("6/30/2017", tz = "US/Central")) %>%
+    group_by(group) %>%
+    summarize_if(is.logical, funs(mean(., na.rm = TRUE) * 100)) %>%
+    gather(indication, val, afib:other) %>%
+    arrange(group, desc(val)) %>%
+    dmap_at("indication", fct_inorder) %>%
+    # plot_ly(x = ~indication, y = ~val, split = ~group) %>%
+    # add_bars()
+    ggplot(aes(x = indication, y = val, fill = group)) +
+    geom_bar(stat = "identity", position = "dodge") +
+    xlab("Indication") +
+    ylab("Patients (%)") +
+    scale_fill_brewer("Group", palette = "Set1") +
+    theme_bg(xticks = FALSE)
+
+ggplotly(p, dynamicTicks = TRUE)
+```
+
