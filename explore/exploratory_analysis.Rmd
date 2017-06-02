@@ -18,13 +18,19 @@ library(tidyverse)
 library(purrrlyr)
 library(plotly)
 library(themebg)
+library(aws.s3)
 
 # prevent peer checking due to MH firewall
 if (.Platform$OS.type == "windows") {
     httr::set_config(httr::config(ssl_verifypeer = 0L))
 }
 
-x <- dirr::get_rds_s3("warfarin-annual-report", "data/tidy/")
+dir_tidy <- "data/tidy/"
+bucket <- "warfarin-annual-report"
+hdrs <- list(`x-amz-server-side-encryption` = "AES256")
+
+data_daily <- s3readRDS(paste0(dir_tidy, "data_daily.Rds"), bucket)
+data_warfarin <- s3readRDS(paste0(dir_tidy, "data_warfarin.Rds"), bucket)
 ```
 
 ```{r, fig.cap="Distribution of warfarin dose by day of therapy"}

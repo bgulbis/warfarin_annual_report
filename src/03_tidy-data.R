@@ -6,7 +6,6 @@ library(lubridate)
 library(stringr)
 library(edwr)
 library(aws.s3)
-# library(dirr)
 
 # prevent peer checking due to MH firewall
 if (.Platform$OS.type == "windows") {
