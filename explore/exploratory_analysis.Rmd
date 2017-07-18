@@ -18,21 +18,13 @@ library(tidyverse)
 library(purrrlyr)
 library(lubridate)
 library(forcats)
+library(xts)
+library(dygraphs)
 library(plotly)
+library(RColorBrewer)
 library(themebg)
-library(aws.s3)
 
-# prevent peer checking due to MH firewall
-if (.Platform$OS.type == "windows") {
-    httr::set_config(httr::config(ssl_verifypeer = 0L))
-}
-
-dir_tidy <- "data/tidy/"
-bucket <- "warfarin-annual-report"
-hdrs <- list(`x-amz-server-side-encryption` = "AES256")
-
-data_daily <- s3readRDS(paste0(dir_tidy, "data_daily.Rds"), bucket)
-data_warfarin <- s3readRDS(paste0(dir_tidy, "data_warfarin.Rds"), bucket)
+x <- dirr::get_rds("../data/tidy")
 ```
 
 # Questions
@@ -43,25 +35,48 @@ data_warfarin <- s3readRDS(paste0(dir_tidy, "data_warfarin.Rds"), bucket)
 1. How does 2016 compare with 2015
 1. Indications for warfarin in each group
 
+```{r}
+as.matrix(data_timeseries[, 2:3]) %>% 
+    as.xts(order.by = data_timeseries$action.date, tzone = "US/Central") %>%
+    dygraph(main = "Daily Warfarin Orders") %>%
+    dySeries("pharmacy", label = "Pharmacy") %>%
+    dySeries("traditional", label = "Traditional") %>%
+    dyOptions(colors = brewer.pal(3, "Set1")) %>%
+    dyRoller(rollPeriod = 5) %>%
+    dyRangeSelector() %>%
+    dyRangeSelector(c(max(data_timeseries$action.date) - months(12), max(data_timeseries$action.date)))
+```
+
+
 ```{r, fig.cap="Distribution of warfarin dose by day of therapy for FY17"}
-p <- data_daily %>%
+data_daily %>%
+    ungroup() %>%
     filter(warfarin_day <= 10,
            med.datetime >= mdy("7/1/2016", tz = "US/Central"),
            med.datetime <= mdy("6/30/2017", tz = "US/Central")) %>%
-    dmap_at("warfarin_day", as.integer) %>%
     left_join(data_warfarin[c("millennium.id", "group", "initiation", "indication_group")], by = "millennium.id") %>%
-    ggplot(aes(x = factor(warfarin_day), y = med.dose, color = group)) +
+    mutate_at("warfarin_day", as.integer) %>%
+    mutate_at("warfarin_day", factor) %>%
+    plot_ly(x = ~warfarin_day, y = ~med.dose, split = ~group) %>%
+    add_boxplot() %>%
+    layout(xaxis = list(title = "Day of therapy"),
+           yaxis = list(title = "Warfarin dose (mg)"))
+```
+
+```{r, eval=FALSE}
+gp <- ggplot(p, aes(x = warfarin_day, y = med.dose, color = group)) +
     geom_boxplot() +
     xlab("Day of therapy") +
     ylab("Warfarin dose (mg)") +
     scale_color_brewer("Group", palette = "Set1", labels = c("Pharmacy", "Traditional")) +
     theme_bg()
 
-ggplotly(p, dynamicTicks = TRUE)
+ggplotly(gp, dynamicTicks = TRUE)
 ```
 
 ```{r, fig.cap="Relationship between warfarin dose and INR in FY17"}
-p <- data_daily %>%
+data_daily %>%
+    ungroup() %>%
     filter(warfarin_day <= 10,
            med.dose > 0,
            med.dose <= 15,
@@ -70,18 +85,24 @@ p <- data_daily %>%
            med.datetime <= mdy("6/30/2017", tz = "US/Central")) %>%
     # dmap_at("warfarin_day", as.integer) %>%
     left_join(data_warfarin[c("millennium.id", "group", "initiation", "indication_group")], by = "millennium.id") %>%
-    ggplot(aes(x = med.dose, y = inr)) +
-    geom_point(aes(color = group), shape = 1) +
-    xlab("Warfarin dose (mg)") +
-    ylab("INR") +
-    scale_color_brewer("Group", palette = "Set1", labels = c("Pharmacy", "Traditional")) +
-    theme_bg()
-
-ggplotly(p, dynamicTicks = TRUE)
+    plot_ly() %>%
+    add_markers(x = ~med.dose, y = ~inr, split = ~group, marker = list(symbol = "circle-open")) %>%
+    layout(xaxis = list(title = "Warfarin dose (mg)"),
+           yaxis = list(title = "INR"))
+#     
+#     
+#     ggplot(aes(x = med.dose, y = inr)) +
+#     geom_point(aes(color = group), shape = 1) +
+#     xlab("Warfarin dose (mg)") +
+#     ylab("INR") +
+#     scale_color_brewer("Group", palette = "Set1", labels = c("Pharmacy", "Traditional")) +
+#     theme_bg()
+# 
+# ggplotly(p, dynamicTicks = TRUE)
 ```
 
 ```{r}
-p <- data_warfarin %>%
+data_warfarin %>%
     filter(warfarin_start >= mdy("7/1/2016", tz = "US/Central"),
            warfarin_start <= mdy("6/30/2017", tz = "US/Central")) %>%
     group_by(group) %>%
@@ -89,15 +110,18 @@ p <- data_warfarin %>%
     gather(indication, val, afib:other) %>%
     arrange(group, desc(val)) %>%
     dmap_at("indication", fct_inorder) %>%
-    # plot_ly(x = ~indication, y = ~val, split = ~group) %>%
-    # add_bars()
-    ggplot(aes(x = indication, y = val, fill = group)) +
-    geom_bar(stat = "identity", position = "dodge") +
-    xlab("Indication") +
-    ylab("Patients (%)") +
-    scale_fill_brewer("Group", palette = "Set1") +
-    theme_bg(xticks = FALSE)
+    plot_ly(x = ~indication, y = ~val, split = ~group) %>%
+    add_bars() %>%
+    layout(xaxis = list(title = "Indication"),
+           yaxis = list(title = "Patients (%)"))
 
-ggplotly(p, dynamicTicks = TRUE)
+#     ggplot(aes(x = indication, y = val, fill = group)) +
+#     geom_bar(stat = "identity", position = "dodge") +
+#     xlab("Indication") +
+#     ylab("Patients (%)") +
+#     scale_fill_brewer("Group", palette = "Set1") +
+#     theme_bg(xticks = FALSE)
+# 
+# ggplotly(p, dynamicTicks = TRUE)
 ```
 
