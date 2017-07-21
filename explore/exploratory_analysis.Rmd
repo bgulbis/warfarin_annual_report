@@ -18,6 +18,7 @@ library(tidyverse)
 library(purrrlyr)
 library(lubridate)
 library(forcats)
+library(broom)
 library(xts)
 library(dygraphs)
 library(plotly)
@@ -43,8 +44,8 @@ as.matrix(data_timeseries[, 2:3]) %>%
     dySeries("traditional", label = "Traditional") %>%
     dyOptions(colors = brewer.pal(3, "Set1")) %>%
     dyRoller(rollPeriod = 5) %>%
-    dyRangeSelector() %>%
-    dyRangeSelector(c(max(data_timeseries$action.date) - months(12), max(data_timeseries$action.date)))
+    dyRangeSelector(c("2016-07-01", "2017-06-30")) 
+    # dyRangeSelector(c(max(data_timeseries$action.date) - months(12), max(data_timeseries$action.date)))
 ```
 
 
@@ -74,6 +75,74 @@ gp <- ggplot(p, aes(x = warfarin_day, y = med.dose, color = group)) +
 ggplotly(gp, dynamicTicks = TRUE)
 ```
 
+```{r, eval=FALSE}
+data_daily %>%
+    ungroup() %>%
+    filter(warfarin_day <= 10,
+           med.datetime >= mdy("7/1/2016", tz = "US/Central"),
+           med.datetime <= mdy("6/30/2017", tz = "US/Central"),
+           !is.na(inr)) %>%
+    left_join(data_warfarin[c("millennium.id", "group", "initiation", "indication_group")], by = "millennium.id") %>%
+    filter(!is.na(indication_group)) %>%
+    mutate_at("warfarin_day", as.numeric) %>%
+    # group_by(group, warfarin_day) %>%
+    ggplot(aes(x = warfarin_day, y = inr, color = group)) +
+    # geom_point(shape = 1) +
+    geom_smooth() +
+    scale_x_continuous(breaks = seq(0, 10, 2)) +
+    facet_wrap(~ indication_group)
+
+# x <- ggplot_build(df)$data[[1]]
+    
+```
+
+```{r, message=FALSE, warning=FALSE}
+se_line <- "rgba(7, 164, 181, 0.05)"
+se_fill <- "rgba(7, 164, 181, 0.2)"
+
+df <- data_daily %>%
+    ungroup() %>%
+    filter(warfarin_day <= 10,
+           med.datetime >= mdy("7/1/2016", tz = "US/Central"),
+           med.datetime <= mdy("6/30/2017", tz = "US/Central"),
+           !is.na(inr)) %>%
+    left_join(data_warfarin[c("millennium.id", "group", "initiation", "indication_group")], by = "millennium.id") %>%
+    mutate_at("warfarin_day", as.numeric) 
+
+df_pharm <- filter(df, group == "pharmacy")
+df_trad <- filter(df, group == "traditional")
+
+m_pharm <- loess(inr ~ warfarin_day, data = df, subset = group == "pharmacy")
+m_trad <- loess(inr ~ warfarin_day, data = df, subset = group == "traditional")
+
+plot_ly(x = ~warfarin_day) %>%
+    add_lines(data = df_pharm, 
+              y = ~fitted(m_pharm), 
+              name = "Pharmacy", 
+              legendgroup = "pharm") %>%
+    add_lines(data = df_trad, 
+              y = ~fitted(m_trad), 
+              name = "Traditional", 
+              legendgroup = "trad") %>%
+    add_ribbons(data = augment(m_pharm),
+                ymin = ~.fitted - 1.96 * .se.fit,
+                ymax = ~.fitted + 1.96 * .se.fit,
+                line = list(color = se_line),
+                fillcolor = se_fill,
+                showlegend = FALSE,
+                legendgroup = "pharm") %>%
+    add_ribbons(data = augment(m_trad),
+                ymin = ~.fitted - 1.96 * .se.fit,
+                ymax = ~.fitted + 1.96 * .se.fit,
+                line = list(color = se_line),
+                fillcolor = se_fill,
+                showlegend = FALSE,
+                legendgroup = "trad") %>%
+    layout(xaxis = list(title = "Day of Warfarin"),
+           yaxis = list(title = "INR"))
+```
+
+
 ```{r, fig.cap="Relationship between warfarin dose and INR in FY17"}
 data_daily %>%
     ungroup() %>%
@@ -86,7 +155,8 @@ data_daily %>%
     # dmap_at("warfarin_day", as.integer) %>%
     left_join(data_warfarin[c("millennium.id", "group", "initiation", "indication_group")], by = "millennium.id") %>%
     plot_ly() %>%
-    add_markers(x = ~med.dose, y = ~inr, split = ~group, marker = list(symbol = "circle-open")) %>%
+    # add_markers(x = ~med.dose, y = ~inr, split = ~group, marker = list(symbol = "circle-open")) %>%
+    add_boxplot(x = ~med.dose, y = ~inr, split = ~group) %>%
     layout(xaxis = list(title = "Warfarin dose (mg)"),
            yaxis = list(title = "INR"))
 #     
@@ -123,5 +193,18 @@ data_warfarin %>%
 #     theme_bg(xticks = FALSE)
 # 
 # ggplotly(p, dynamicTicks = TRUE)
+```
+
+```{r}
+data_doses_location %>%
+    ungroup() %>%
+    arrange(desc(n)) %>%
+    top_n(15, n) %>%
+    mutate_at("med.location", as_factor) %>%
+    mutate_at("med.location", fct_rev) %>%
+    plot_ly(x = ~n, y = ~med.location) %>%
+    add_bars(orientation = "h") %>%
+    layout(xaxis = list(title = "Number of Doses"),
+           yaxis = list(title = ""))
 ```
 
