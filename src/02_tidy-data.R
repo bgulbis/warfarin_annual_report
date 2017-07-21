@@ -30,6 +30,16 @@ warfarin_dates <- meds_warfarin %>%
     summarize_at("med.datetime", funs(warfarin_start = first,
                                       warfarin_stop = last))
 
+location_start <- meds_warfarin %>%
+    group_by(millennium.id) %>%
+    summarize_at("med.location", funs(location_start = first,
+                                      location_last = last))
+
+data_doses_location <- meds_warfarin %>%
+    filter(med.datetime >= mdy("7/1/2016"),
+           med.datetime <= mdy("6/30/2017")) %>%
+    count(med.location)
+
 warfarin_doses <- meds_warfarin %>%
     dmap_at("med.datetime", floor_date, unit = "day") %>%
     group_by(millennium.id, med.datetime) %>%
