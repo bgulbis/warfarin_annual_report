@@ -84,6 +84,25 @@ data_timeseries <- data_order_actions %>%
     filter(action.date >= mdy("7/1/2014"),
            action.date <= mdy(end_date))
 
+data_timeseries_location <- data_order_actions %>%
+    distinct(millennium.id, action.date, consult, order.location) %>%
+    group_by(millennium.id, action.date) %>%
+    mutate(value = TRUE,
+           consult = if_else(consult, "pharmacy", "traditional")) %>%
+    spread(consult, value) %>%
+    dmap_at("traditional", ~ coalesce(.x, TRUE)) %>%
+    ungroup() %>%
+    distinct() %>%
+    group_by(action.date, order.location) %>%
+    summarize_at(c("pharmacy", "traditional"), sum, na.rm = TRUE) %>%
+    mutate(traditional = traditional - pharmacy,
+           month = floor_date(action.date, unit = "month"),
+           week = floor_date(action.date, unit = "week"),
+           fy_month = month + months(6),
+           fy = year(fy_month)) %>%
+    filter(action.date >= mdy("7/1/2014"),
+           action.date <= mdy(end_date))
+
 # data_timeseries %>%
 #     filter(month < mdy("4/1/2017")) %>%
 #     group_by(fy, month, fy_month) %>%
@@ -152,7 +171,7 @@ warfarin_indications <- raw_warfarin %>%
     select(-warfarin.datetime) %>%
     rowwise() %>%
     mutate(indication_group = if_else(sum(dvt, pe, thrombus) >= 1, "vte",
-                                    if_else(sum(afib, stroke, valve, vad) >= 1, "cva_prevent", "other")))
+                                    if_else(sum(afib, stroke, valve) >= 1, "cva_prevent", "other")))
 
 data_warfarin <- patient_groups %>%
     left_join(warfarin_dates, by = "millennium.id") %>%
