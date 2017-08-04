@@ -1,8 +1,7 @@
 ---
-title: "Pharmacy-Managed Warfarin Dosing Service"
-subtitle: "Fiscal Year 2017"
-author: "Brian GUlbis, PharmD, BCPS"
-date: '`r format(Sys.Date(), "%B %d, %Y")`'
+title: "Pharmacy-Managed Warfarin Dosing Service Analysis for Fiscal Year 2017"
+author: "Brian Gulbis, PharmD, BCPS"
+date: "August 28, 2017"
 output:
   tufte::tufte_handout:
     latex_engine: pdflatex
@@ -12,7 +11,76 @@ link-citations: yes
 ```{r setup, include=FALSE}
 library(tufte)
 # invalidate cache when the tufte version changes
-knitr::opts_chunk$set(tidy = FALSE, echo = FALSE, cache.extra = packageVersion('tufte'))
+knitr::opts_chunk$set(tidy = FALSE, echo = FALSE, message = FALSE, warning = FALSE, cache.extra = packageVersion('tufte'))
 options(htmltools.dir.version = FALSE)
+```
+
+```{r data, message=FALSE}
+library(tidyverse)
+library(lubridate)
+library(forcats)
+library(broom)
+library(themebg)
+
+x <- dirr::get_rds("../data/tidy")
+```
+
+```{r, fig.cap="Warfarin managed by Pharmacy Dosing Service compared with traditional management"}
+data_timeseries_location %>%
+    filter(week >= mdy("7/1/2015"),
+           week <= mdy("6/30/2017")) %>%
+    group_by(week) %>%
+    summarize_at(c("pharmacy", "traditional"), sum, na.rm = TRUE) %>%
+    gather(group, num, pharmacy, traditional) %>%
+    ggplot(aes(x = week, y = num)) +
+    geom_line(aes(linetype = group)) +
+    geom_smooth(aes(linetype = group), color = "black", se = FALSE) +
+    xlab("") +
+    ylab("Weekly Patients") +
+    scale_linetype_discrete("", labels = c("Pharmacy", "Traditional")) +
+    theme_bg()
+```
+
+```{r, fig.cap="Top 20 hospital units utilizing warfarin"}
+data_timeseries_location %>%
+    filter(week >= mdy("7/1/2016"),
+           week <= mdy("6/30/2017")) %>%
+    group_by(order.location) %>%
+    summarize_at(c("pharmacy", "traditional"), sum, na.rm = TRUE) %>%
+    mutate(total = pharmacy + traditional) %>%
+    arrange(desc(total)) %>%
+    top_n(20, total) %>%
+    gather(group, num, pharmacy, traditional) %>%
+    mutate_at("order.location", as_factor) %>%
+    mutate_at("order.location", fct_rev) %>%
+    ggplot(aes(x = order.location, y = num, fill = group)) +
+    geom_bar(stat = "identity") +
+    xlab("Hospital Unit") +
+    ylab("Warfarin Doses Administered") +
+    scale_fill_manual("", values = c("#636363", "#bdbdbd"), labels = c("Pharmacy", "Traditional")) +
+    coord_flip() +
+    theme_bg() +
+    theme(legend.position = "top")
+```
+
+```{r}
+data_warfarin %>%
+    filter(warfarin_start >= mdy("7/1/2016", tz = "US/Central"),
+           warfarin_start <= mdy("6/30/2017", tz = "US/Central")) %>%
+    group_by(group) %>%
+    summarize_if(is.logical, funs(mean(., na.rm = TRUE) * 100)) %>%
+    gather(indication, val, afib:other) %>%
+    arrange(group, desc(val)) %>%
+    mutate_at("indication", fct_inorder) %>%
+    mutate_at("indication", fct_rev) %>%
+    ggplot(aes(x = indication, y = val, fill = group)) +
+    geom_bar(stat = "identity", position = "dodge") +
+    # xlab("Indication") +
+    scale_x_discrete("Indication", labels = c("Prophylaxis", "Hypercoaguable", "VAD", "Stroke", "Other", "Thrombus", "PE", "Valve", "DVT", "A.fib")) +
+    ylab("Patients (%)") +
+    scale_fill_manual("", values = c("#636363", "#bdbdbd"), labels = c("Pharmacy", "Traditional")) +
+    coord_flip() +
+    theme_bg(yticks = FALSE) +
+    theme(legend.position = "top")
 ```
 
