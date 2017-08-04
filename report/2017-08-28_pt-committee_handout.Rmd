@@ -121,3 +121,8 @@ data_daily %>%
     theme(legend.position = "top")
 ```
 
+# Safety Assessment
+
+* Hgb drop
+* Transfusion
+* Readmission
