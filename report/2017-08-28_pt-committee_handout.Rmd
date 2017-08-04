@@ -38,7 +38,8 @@ data_timeseries_location %>%
     xlab("") +
     ylab("Weekly Patients") +
     scale_linetype_discrete("", labels = c("Pharmacy", "Traditional")) +
-    theme_bg()
+    theme_bg() +
+    theme(legend.position = "top")
 ```
 
 ```{r, fig.cap="Top 20 hospital units utilizing warfarin"}
@@ -63,7 +64,7 @@ data_timeseries_location %>%
     theme(legend.position = "top")
 ```
 
-```{r}
+```{r, fig.cap="Warfarin indications for patients managed by pharmacy and traditional"}
 data_warfarin %>%
     filter(warfarin_start >= mdy("7/1/2016", tz = "US/Central"),
            warfarin_start <= mdy("6/30/2017", tz = "US/Central")) %>%
@@ -81,6 +82,42 @@ data_warfarin %>%
     scale_fill_manual("", values = c("#636363", "#bdbdbd"), labels = c("Pharmacy", "Traditional")) +
     coord_flip() +
     theme_bg(yticks = FALSE) +
+    theme(legend.position = "top")
+```
+
+```{r, fig.cap="Distribution of warfarin dose by day of therapy"}
+data_daily %>%
+    ungroup() %>%
+    filter(warfarin_day <= 10,
+           med.datetime >= mdy("7/1/2016", tz = "US/Central"),
+           med.datetime <= mdy("6/30/2017", tz = "US/Central")) %>%
+    left_join(data_warfarin[c("millennium.id", "group", "initiation", "indication_group")], by = "millennium.id") %>%
+    mutate_at("warfarin_day", as.integer) %>%
+    mutate_at("warfarin_day", factor) %>%
+    ggplot(aes(x = warfarin_day, y = med.dose, fill = group)) +
+    geom_boxplot() +
+    xlab("Day of therapy") +
+    ylab("Warfarin dose (mg)") +
+    scale_fill_manual("", values = c("#636363", "#bdbdbd"), labels = c("Pharmacy", "Traditional")) +
+    theme_bg() +
+    theme(legend.position = "top")
+```
+
+```{r}
+data_daily %>%
+    ungroup() %>%
+    filter(warfarin_day <= 10,
+           med.datetime >= mdy("7/1/2016", tz = "US/Central"),
+           med.datetime <= mdy("6/30/2017", tz = "US/Central"),
+           !is.na(inr)) %>%
+    left_join(data_warfarin[c("millennium.id", "group", "initiation", "indication_group")], by = "millennium.id") %>%
+    mutate_at("warfarin_day", as.numeric) %>%
+    ggplot(aes(x = warfarin_day, y = inr, linetype = group)) +
+    geom_smooth(color = "black") +
+    scale_x_continuous("Day of therapy", breaks = seq(1, 10, 2)) +
+    ylab("INR") +
+    scale_linetype_discrete("", labels = c("Pharmacy", "Traditional")) +
+    theme_bg() +
     theme(legend.position = "top")
 ```
 
