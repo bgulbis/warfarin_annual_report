@@ -34,7 +34,7 @@ data_timeseries_location %>%
     gather(group, num, pharmacy, traditional) %>%
     ggplot(aes(x = week, y = num)) +
     geom_line(aes(linetype = group)) +
-    geom_smooth(aes(linetype = group), color = "black", se = FALSE) +
+    geom_smooth(aes(linetype = group), method = "lm", color = "black", se = FALSE) +
     xlab("") +
     ylab("Weekly Patients") +
     scale_linetype_discrete("", labels = c("Pharmacy", "Traditional")) +
@@ -42,7 +42,7 @@ data_timeseries_location %>%
     theme(legend.position = "top")
 ```
 
-```{r, fig.cap="Top 20 hospital units utilizing warfarin"}
+```{r, fig.cap="Top 20 hospital units utilizing warfarin", fig.height=4.5}
 data_timeseries_location %>%
     filter(week >= mdy("7/1/2016"),
            week <= mdy("6/30/2017")) %>%
@@ -50,7 +50,7 @@ data_timeseries_location %>%
     summarize_at(c("pharmacy", "traditional"), sum, na.rm = TRUE) %>%
     mutate(total = pharmacy + traditional) %>%
     arrange(desc(total)) %>%
-    top_n(20, total) %>%
+    top_n(15, total) %>%
     gather(group, num, pharmacy, traditional) %>%
     mutate_at("order.location", as_factor) %>%
     mutate_at("order.location", fct_rev) %>%
@@ -74,10 +74,11 @@ data_warfarin %>%
     arrange(group, desc(val)) %>%
     mutate_at("indication", fct_inorder) %>%
     mutate_at("indication", fct_rev) %>%
+    filter(val > 0) %>%
     ggplot(aes(x = indication, y = val, fill = group)) +
     geom_bar(stat = "identity", position = "dodge") +
     # xlab("Indication") +
-    scale_x_discrete("Indication", labels = c("Prophylaxis", "Hypercoaguable", "VAD", "Stroke", "Other", "Thrombus", "PE", "Valve", "DVT", "A.fib")) +
+    scale_x_discrete("Indication", labels = c("Hypercoaguable", "VAD", "Stroke", "Other", "Thrombus", "PE", "Valve", "DVT", "A.fib")) +
     ylab("Patients (%)") +
     scale_fill_manual("", values = c("#636363", "#bdbdbd"), labels = c("Pharmacy", "Traditional")) +
     coord_flip() +
@@ -103,7 +104,7 @@ data_daily %>%
     theme(legend.position = "top")
 ```
 
-```{r}
+```{r, fig.cap="INR response during the first 10 days of warfarin therapy"}
 data_daily %>%
     ungroup() %>%
     filter(warfarin_day <= 10,
