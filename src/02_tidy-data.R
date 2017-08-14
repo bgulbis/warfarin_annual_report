@@ -200,10 +200,38 @@ warfarin_indications <- raw_warfarin %>%
     mutate(indication_group = if_else(sum(dvt, pe, thrombus) >= 1, "vte",
                                     if_else(sum(afib, stroke, valve) >= 1, "cva_prevent", "other")))
 
+warfarin_ranges <- raw_warfarin %>%
+    make_inr_ranges() %>%
+    filter(!is.na(goal.low),
+           !is.na(goal.high)) %>%
+    group_by(millennium.id) %>%
+    arrange(warfarin.datetime, .by_group = TRUE) %>%
+    summarize_at(c("goal.low", "goal.high"), last)
+
 data_warfarin <- patient_groups %>%
     left_join(warfarin_dates, by = "millennium.id") %>%
     left_join(warfarin_initiation, by = "millennium.id") %>%
+    left_join(warfarin_ranges, by = "millennium.id") %>%
     left_join(warfarin_indications, by = "millennium.id")
+
+# time therapeutic -------------------------------------
+
+time_tx <- raw_labs %>%
+    left_join(warfarin_dates, by = "millennium.id") %>%
+    filter(lab == "inr",
+           lab.datetime >= warfarin_start,
+           lab.datetime <= warfarin_stop + days(1))
+
+class(time_tx) <- append(class(time_tx), c("labs", "edwr"), after = 0L)
+attr(time_tx, "data") <- "mbo"
+
+time_tx <- calc_runtime(time_tx) %>%
+    left_join(warfarin_ranges, by = "millennium.id")
+
+class(time_tx) <- append(class(time_tx), c("labs", "edwr"), after = 0L)
+attr(time_tx, "data") <- "mbo"
+
+time_tx <- calc_perctime(time_tx, list(~lab.result >= goal.low, ~lab.result <= goal.high))
 
 # save data --------------------------------------------
 
