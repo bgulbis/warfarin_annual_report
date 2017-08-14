@@ -27,25 +27,23 @@ x <- dirr::get_rds("../data/tidy")
 
 ```{r, fig.cap="Warfarin managed by Pharmacy Dosing Service compared with traditional management"}
 data_timeseries_location %>%
-    filter(week >= mdy("7/1/2015"),
-           week <= mdy("6/30/2017")) %>%
+    filter(fy == 2016 | fy == 2017) %>%
     group_by(week) %>%
     summarize_at(c("pharmacy", "traditional"), sum, na.rm = TRUE) %>%
     gather(group, num, pharmacy, traditional) %>%
     ggplot(aes(x = week, y = num)) +
     geom_line(aes(linetype = group)) +
     geom_smooth(aes(linetype = group), method = "lm", color = "black", se = FALSE) +
-    xlab("") +
+    scale_x_datetime("", date_labels = "%b %Y") +
     ylab("Weekly Patients") +
     scale_linetype_discrete("", labels = c("Pharmacy", "Traditional")) +
     theme_bg() +
     theme(legend.position = "top")
 ```
 
-```{r, fig.cap="Top 20 hospital units utilizing warfarin", fig.height=4.5}
+```{r, fig.cap="Top 15 hospital units utilizing warfarin", fig.height=4.5}
 data_timeseries_location %>%
-    filter(week >= mdy("7/1/2016"),
-           week <= mdy("6/30/2017")) %>%
+    filter(fy == 2017) %>%
     group_by(order.location) %>%
     summarize_at(c("pharmacy", "traditional"), sum, na.rm = TRUE) %>%
     mutate(total = pharmacy + traditional) %>%
@@ -89,7 +87,7 @@ data_warfarin %>%
 ```{r, fig.cap="Distribution of warfarin dose by day of therapy"}
 data_daily %>%
     ungroup() %>%
-    filter(warfarin_day <= 10,
+    filter(warfarin_day <= 7,
            med.datetime >= mdy("7/1/2016", tz = "US/Central"),
            med.datetime <= mdy("6/30/2017", tz = "US/Central")) %>%
     left_join(data_warfarin[c("millennium.id", "group", "initiation", "indication_group")], by = "millennium.id") %>%
@@ -104,10 +102,10 @@ data_daily %>%
     theme(legend.position = "top")
 ```
 
-```{r, fig.cap="INR response during the first 10 days of warfarin therapy"}
+```{r, fig.cap="INR response during the first 7 days of warfarin therapy"}
 data_daily %>%
     ungroup() %>%
-    filter(warfarin_day <= 10,
+    filter(warfarin_day <= 7,
            med.datetime >= mdy("7/1/2016", tz = "US/Central"),
            med.datetime <= mdy("6/30/2017", tz = "US/Central"),
            !is.na(inr)) %>%
@@ -115,7 +113,7 @@ data_daily %>%
     mutate_at("warfarin_day", as.numeric) %>%
     ggplot(aes(x = warfarin_day, y = inr, linetype = group)) +
     geom_smooth(color = "black") +
-    scale_x_continuous("Day of therapy", breaks = seq(1, 10, 2)) +
+    scale_x_continuous("Day of therapy", breaks = seq(1, 7, 1)) +
     ylab("INR") +
     scale_linetype_discrete("", labels = c("Pharmacy", "Traditional")) +
     theme_bg() +
@@ -124,6 +122,22 @@ data_daily %>%
 
 # Safety Assessment
 
-* Hgb drop
+```{r}
+tbl_hgb_drop <- data_hgb_drop %>%
+    inner_join(data_warfarin[c("millennium.id", "group", "warfarin_start")], by = "millennium.id") %>%
+    filter(warfarin_start >= mdy("7/1/2016", tz = "US/Central"),
+           warfarin_start <= mdy("6/30/2017", tz = "US/Central")) %>%
+    group_by(group) %>%
+    summarize_at("hgb_drop", mean) %>%
+    mutate_at("hgb_drop", funs(. * 100)) %>%
+    spread(group, hgb_drop) %>%
+    mutate(variable = "Hgb drop") %>%
+    select(variable, Pharmacy = pharmacy, Traditional = traditional) 
+
+knitr::kable(tbl_hgb_drop, digits = 1, caption = "Hemoglobin decrease by >/= 2 g/dL within a 48-hour period")
+```
+
+
+
 * Transfusion
 * Readmission
