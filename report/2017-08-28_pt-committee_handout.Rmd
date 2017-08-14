@@ -120,6 +120,11 @@ data_daily %>%
     theme(legend.position = "top")
 ```
 
+```{r}
+    
+```
+
+
 # Safety Assessment
 
 ```{r}
@@ -131,8 +136,8 @@ tbl_hgb_drop <- data_hgb_drop %>%
     summarize_at("hgb_drop", mean) %>%
     mutate_at("hgb_drop", funs(. * 100)) %>%
     spread(group, hgb_drop) %>%
-    mutate(variable = "Hgb drop") %>%
-    select(variable, Pharmacy = pharmacy, Traditional = traditional) 
+    mutate(Outcome = "Hgb drop") %>%
+    select(Outcome, Pharmacy = pharmacy, Traditional = traditional) 
 
 knitr::kable(tbl_hgb_drop, digits = 1, caption = "Hemoglobin decrease by >/= 2 g/dL within a 48-hour period")
 ```
