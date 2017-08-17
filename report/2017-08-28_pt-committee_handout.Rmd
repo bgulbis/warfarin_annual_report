@@ -19,13 +19,47 @@ options(htmltools.dir.version = FALSE)
 library(tidyverse)
 library(lubridate)
 library(forcats)
+library(stringr)
 library(broom)
 library(themebg)
 
 x <- dirr::get_rds("../data/tidy")
+
+ttr_pharm16 <- data_warfarin %>%
+    filter(!is.na(perc.time),
+           warfarin_start >= mdy("7/1/2015", tz = "US/Central"),
+           warfarin_start <= mdy("6/30/2016", tz = "US/Central"),
+           group == "pharmacy") %>%
+    mutate_at("perc.time", as.numeric) %>%
+    mutate_at("perc.time", funs(. * 100)) %>%
+    mutate_at("group", str_replace_all, pattern = "pharmacy", replacement = "pharmacy_fy16")
+
+ttr_pharm17 <- data_warfarin %>%
+    filter(!is.na(perc.time),
+           warfarin_start >= mdy("7/1/2016", tz = "US/Central"),
+           warfarin_start <= mdy("6/30/2017", tz = "US/Central"),
+           group == "pharmacy") %>%
+    mutate_at("perc.time", as.numeric) %>%
+    mutate_at("perc.time", funs(. * 100)) 
+
+ttr_trad17 <- data_warfarin %>%
+    filter(!is.na(perc.time),
+           warfarin_start >= mdy("7/1/2016", tz = "US/Central"),
+           warfarin_start <= mdy("6/30/2017", tz = "US/Central"),
+           group == "traditional") %>%
+    mutate_at("perc.time", as.numeric) %>%
+    mutate_at("perc.time", funs(. * 100)) 
 ```
 
-```{r, fig.cap="Warfarin managed by Pharmacy Dosing Service compared with traditional management"}
+# Summary
+
+Utilization of the Pharmacy-Managed Warfarin Dosing Service continued to increase in FY17. The areas with the highest utilization are Rehab, CVIMU, and Stroke units. Patients managed by pharmacy had a small but significantly higher time in therapeutic range. 
+
+# Service Utilization
+
+There has been a 20% increase in the number of warfarin patients being managed by the Pharmacy Dosing Service over the past two fiscal years (see Figure 1). Conversely, there has been a 25% decrease in patients with traditional warfarin management (warfarin managed by a physician or advanced practice provider) during this time. 
+
+```{r, fig.cap="Number of Warfarin patients managed by Pharmacy Dosing Service compared with traditional management on a weekly basis from July 2015 through June 2017."}
 data_timeseries_location %>%
     filter(fy == 2016 | fy == 2017) %>%
     group_by(week) %>%
@@ -34,35 +68,56 @@ data_timeseries_location %>%
     ggplot(aes(x = week, y = num)) +
     geom_line(aes(linetype = group)) +
     geom_smooth(aes(linetype = group), method = "lm", color = "black", se = FALSE) +
+    # ggtitle("Warfarin Volume") +
     scale_x_datetime("", date_labels = "%b %Y") +
     ylab("Weekly Patients") +
     scale_linetype_discrete("", labels = c("Pharmacy", "Traditional")) +
-    theme_bg() +
-    theme(legend.position = "top")
+    theme_bg(base_family = "serif") +
+    theme(legend.position = "bottom")
 ```
 
-```{r, fig.cap="Top 15 hospital units utilizing warfarin", fig.height=4.5}
-data_timeseries_location %>%
+The highest volume of warfarin use occurs in the Heart Failure IMU, followed by CIMU and CVIMU (see Figure 2). Among the units with the highest warfarin volume, the Pharmacy Dosing Service is responsible for managing warfarin in 50% or more of the patients in the CVIMU, Rehab, 3-Cullen, and Stroke units. Utilization of the Pharmacy Dosing Service remains low in both HFIMU and CIMU, although Clinical Pharmacists and Clinical Pharmacist-Specialists participate in the management of warfarin in both of these areas.
+
+```{r, fig.cap="Top 10 hospital units administering warfarin in FY17. The X indicates warfarin managed by Pharmacy Dosing Service in each unit in FY16. The | indicates the total warfarin in each unit in FY16."}
+units17 <- data_timeseries_location %>%
     filter(fy == 2017) %>%
     group_by(order.location) %>%
     summarize_at(c("pharmacy", "traditional"), sum, na.rm = TRUE) %>%
     mutate(total = pharmacy + traditional) %>%
     arrange(desc(total)) %>%
-    top_n(15, total) %>%
+    top_n(10, total) %>%
     gather(group, num, pharmacy, traditional) %>%
+    mutate_at("group", factor, levels = c("traditional", "pharmacy")) %>%
     mutate_at("order.location", as_factor) %>%
     mutate_at("order.location", fct_rev) %>%
-    ggplot(aes(x = order.location, y = num, fill = group)) +
-    geom_bar(stat = "identity") +
+    mutate(fy = 2017)
+
+units16 <- data_timeseries_location %>%
+    filter(fy == 2016) %>%
+    mutate_at("order.location", str_replace_all, pattern = "HH 5HVI", replacement = "HH HFIM") %>%
+    mutate_at("order.location", str_replace_all, pattern = "HH 3ECP|HH 3WCP", replacement = "HH 3CP") %>%   
+    group_by(order.location) %>%
+    summarize_at(c("pharmacy", "traditional"), sum, na.rm = TRUE) %>%
+    mutate(total = pharmacy + traditional) %>%
+    semi_join(units17, by = "order.location")
+
+ggplot() +
+    geom_bar(aes(x = order.location, y = num, fill = group), data = units17, stat = "identity") +
+    geom_errorbar(aes(x = order.location, ymin = total, ymax = total), data = units16, width = 0.5, color = "grey35") +
+    geom_point(aes(x = order.location, y = pharmacy), data = units16, shape = 4, color = "grey35") +
+    # ggtitle("Warfarin Utilization by Hospital Unit") +
     xlab("Hospital Unit") +
     ylab("Warfarin Doses Administered") +
-    scale_fill_manual("", values = c("#636363", "#bdbdbd"), labels = c("Pharmacy", "Traditional")) +
+    scale_fill_brewer("", palette = "Greys", labels = c("Traditional", "Pharmacy")) +
+    # scale_fill_manual("", values = c("#636363", "#bdbdbd"), labels = c("Pharmacy", "Traditional")) +
     coord_flip() +
-    theme_bg() +
-    theme(legend.position = "top")
+    theme_bg(base_family = "serif") +
+    theme(legend.position = "bottom")
 ```
 
-```{r, fig.cap="Warfarin indications for patients managed by pharmacy and traditional"}
+The Pharmacy Dosing Service manages a higher percent of patients with venous thromboembolism and mechanical heart valves, while the traditional management is responsible for a higher percent of patients with mechanical circulatory support devices (see Figure 3). There are a similar percent of patients with atrial fibrillation in both groups.
+
+```{r, fig.cap="Percent of patients with each warfarin indication among patients managed by pharmacy and traditional."}
 data_warfarin %>%
     filter(warfarin_start >= mdy("7/1/2016", tz = "US/Central"),
            warfarin_start <= mdy("6/30/2017", tz = "US/Central")) %>%
@@ -70,65 +125,113 @@ data_warfarin %>%
     summarize_if(is.logical, funs(mean(., na.rm = TRUE) * 100)) %>%
     gather(indication, val, afib:other) %>%
     arrange(group, desc(val)) %>%
+    mutate_at("group", factor, levels = c("traditional", "pharmacy")) %>%
     mutate_at("indication", fct_inorder) %>%
     mutate_at("indication", fct_rev) %>%
     filter(val > 0) %>%
     ggplot(aes(x = indication, y = val, fill = group)) +
     geom_bar(stat = "identity", position = "dodge") +
-    # xlab("Indication") +
+    # ggtitle("Warfarin Indications") +
     scale_x_discrete("Indication", labels = c("Hypercoaguable", "VAD", "Stroke", "Other", "Thrombus", "PE", "Valve", "DVT", "A.fib")) +
     ylab("Patients (%)") +
-    scale_fill_manual("", values = c("#636363", "#bdbdbd"), labels = c("Pharmacy", "Traditional")) +
+    scale_fill_brewer("", palette = "Greys", labels = c("Traditional", "Pharmacy")) +
     coord_flip() +
-    theme_bg(yticks = FALSE) +
-    theme(legend.position = "top")
+    theme_bg(base_family = "serif", yticks = FALSE) +
+    theme(legend.position = "bottom")
 ```
 
-```{r, fig.cap="Distribution of warfarin dose by day of therapy"}
-data_daily %>%
+# Efficacy Assessment
+
+In looking at the warfarin doses administered on each of the first 7 days of therapy, there is a higher initial dose ordered by the Pharmacy Dosing Service (see Figure 4).
+
+```{r, fig.cap="Distribution of warfarin dose by day of therapy. The p-value is < 0.01 for each day of warfarin."}
+daily <- data_daily %>%
     ungroup() %>%
     filter(warfarin_day <= 7,
            med.datetime >= mdy("7/1/2016", tz = "US/Central"),
            med.datetime <= mdy("6/30/2017", tz = "US/Central")) %>%
     left_join(data_warfarin[c("millennium.id", "group", "initiation", "indication_group")], by = "millennium.id") %>%
+    mutate_at("group", factor, levels = c("traditional", "pharmacy")) %>%
     mutate_at("warfarin_day", as.integer) %>%
-    mutate_at("warfarin_day", factor) %>%
-    ggplot(aes(x = warfarin_day, y = med.dose, fill = group)) +
+    mutate_at("warfarin_day", factor) 
+
+p <- daily %>%
+    group_by(warfarin_day) %>%
+    do(tidy(wilcox.test(med.dose ~ group, data = .))) %>%
+    mutate_at("p.value", round, digits = 3)
+
+ggplot(daily, aes(x = warfarin_day, y = med.dose, fill = group)) +
     geom_boxplot() +
     xlab("Day of therapy") +
     ylab("Warfarin dose (mg)") +
-    scale_fill_manual("", values = c("#636363", "#bdbdbd"), labels = c("Pharmacy", "Traditional")) +
-    theme_bg() +
-    theme(legend.position = "top")
+    scale_fill_brewer("", palette = "Greys", labels = c("Traditional", "Pharmacy")) +
+    theme_bg(base_family = "serif") +
+    theme(legend.position = "bottom")
 ```
 
-```{r, fig.cap="INR response during the first 7 days of warfarin therapy"}
-data_daily %>%
+Patients managed by the Pharmacy Dosing Service have a slightly higher rise in INR over the first 7 days of therapy, and are more likely to reach an INR around 2 by day 5. 
+
+```{r, fig.cap="INR response during the first 7 days of warfarin therapy. The p-value was < 0.001 for all days except day 3 (p = 0.038) and day 4 (p = 0.388). Patients with an INR target below 2 were excluded from this figure. The usual therapeutic INR range of 2 to 3 is shaded."}
+inr <- data_daily %>%
+    left_join(data_warfarin[c("millennium.id", "goal.low")], by = "millennium.id") %>%
     ungroup() %>%
     filter(warfarin_day <= 7,
            med.datetime >= mdy("7/1/2016", tz = "US/Central"),
            med.datetime <= mdy("6/30/2017", tz = "US/Central"),
-           !is.na(inr)) %>%
+           !is.na(inr),
+           goal.low >= 2) %>%
     left_join(data_warfarin[c("millennium.id", "group", "initiation", "indication_group")], by = "millennium.id") %>%
-    mutate_at("warfarin_day", as.numeric) %>%
-    ggplot(aes(x = warfarin_day, y = inr, linetype = group)) +
+    mutate_at("warfarin_day", as.numeric) 
+
+p <- inr %>%
+    mutate_at("warfarin_day", round, digits = 0) %>%
+    group_by(warfarin_day) %>%
+    do(tidy(wilcox.test(inr ~ group, data = .))) %>%
+    mutate_at("p.value", round, digits = 3)
+
+ggplot(inr, aes(x = warfarin_day, y = inr, linetype = group)) +
+    geom_rect(aes(xmin = -Inf, xmax = Inf, ymin = 2, ymax = 3), fill = "gray95") +
     geom_smooth(color = "black") +
     scale_x_continuous("Day of therapy", breaks = seq(1, 7, 1)) +
     ylab("INR") +
     scale_linetype_discrete("", labels = c("Pharmacy", "Traditional")) +
-    theme_bg() +
-    theme(legend.position = "top")
+    coord_cartesian(ylim = c(1, 3.5)) +
+    theme_bg(base_family = "serif") +
+    theme(legend.position = "bottom")
 ```
 
-```{r}
-    
+There is a higher time-in-therapeutic range for patients managed by the Pharmacy Dosing Service in FY17 compared with traditional management. In a historical comparison, there was no difference in the time-in-therapeutic range for patients managed by the Pharmacy Dosing Service in FY17 vs. FY16.
+
+```{r, fig.cap="Percent time in therapeutic range among patients managed by the Pharmacy Dosing Service in FY17 vs. Traditional management, as well as patients managed by the Pharmacy Dosing Service in FY17 vs. FY16. The p-value for each comparison is included on the figure."}
+p1 <- t.test(ttr_pharm17$perc.time, ttr_trad17$perc.time, var.equal = TRUE)
+p2 <- t.test(ttr_pharm17$perc.time, ttr_pharm16$perc.time, var.equal = TRUE)
+
+ttr_pharm17 %>%
+    bind_rows(ttr_trad17, ttr_pharm16) %>%
+    mutate_at("group", factor, levels = c("pharmacy", "traditional", "pharmacy_fy16")) %>%
+    ggplot(aes(x = group, y = perc.time)) +
+    geom_segment(aes(x = 1.1, xend = 1.9, y = 50, yend = 50), color = "grey35", size = 0.5) +
+    geom_segment(aes(x = 1.1, xend = 2.9, y = 75, yend = 75), color = "grey35", size = 0.5) +
+    geom_label(aes(x = 1.5, y = 50, label = round(p1$p.value, 2)), size = 3, color = "grey35") +
+    geom_label(aes(x = 2.5, y = 75, label = round(p2$p.value, 2)), size = 3, color = "grey35") +
+    geom_boxplot() +
+    scale_x_discrete("", labels = c("Pharmacy", "Traditional", "Pharmacy FY16")) +
+    ylab("Time in Therapeutic Range (%)") +
+    theme_bg(xticks = FALSE, base_family = "serif")
 ```
 
+
+```{r, eval=FALSE}
+t.test(ttr_pharm17$perc.time, ttr_pharm16$perc.time, var.equal = TRUE) %>%
+    tidy() %>%
+    rename(FY17 = estimate1, FY16 = estimate2) %>%
+    knitr::kable(digits = 3, caption = "Percent time in therapeutic range, FY17 pharmacy vs. FY16 pharmacy")
+```
 
 # Safety Assessment
 
 ```{r}
-tbl_hgb_drop <- data_hgb_drop %>%
+data_hgb_drop %>%
     inner_join(data_warfarin[c("millennium.id", "group", "warfarin_start")], by = "millennium.id") %>%
     filter(warfarin_start >= mdy("7/1/2016", tz = "US/Central"),
            warfarin_start <= mdy("6/30/2017", tz = "US/Central")) %>%
@@ -137,9 +240,8 @@ tbl_hgb_drop <- data_hgb_drop %>%
     mutate_at("hgb_drop", funs(. * 100)) %>%
     spread(group, hgb_drop) %>%
     mutate(Outcome = "Hgb drop") %>%
-    select(Outcome, Pharmacy = pharmacy, Traditional = traditional) 
-
-knitr::kable(tbl_hgb_drop, digits = 1, caption = "Hemoglobin decrease by >/= 2 g/dL within a 48-hour period")
+    select(Outcome, Pharmacy = pharmacy, Traditional = traditional) %>%
+    knitr::kable(digits = 1, caption = "Hemoglobin decrease by >/= 2 g/dL within a 48-hour period")
 ```
 
 
