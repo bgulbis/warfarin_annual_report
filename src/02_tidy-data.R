@@ -208,12 +208,6 @@ warfarin_ranges <- raw_warfarin %>%
     arrange(warfarin.datetime, .by_group = TRUE) %>%
     summarize_at(c("goal.low", "goal.high"), last)
 
-data_warfarin <- patient_groups %>%
-    left_join(warfarin_dates, by = "millennium.id") %>%
-    left_join(warfarin_initiation, by = "millennium.id") %>%
-    left_join(warfarin_ranges, by = "millennium.id") %>%
-    left_join(warfarin_indications, by = "millennium.id")
-
 # time therapeutic -------------------------------------
 
 time_tx <- raw_labs %>%
@@ -232,6 +226,13 @@ class(time_tx) <- append(class(time_tx), c("labs", "edwr"), after = 0L)
 attr(time_tx, "data") <- "mbo"
 
 time_tx <- calc_perctime(time_tx, list(~lab.result >= goal.low, ~lab.result <= goal.high))
+
+data_warfarin <- patient_groups %>%
+    left_join(warfarin_dates, by = "millennium.id") %>%
+    left_join(warfarin_initiation, by = "millennium.id") %>%
+    left_join(warfarin_ranges, by = "millennium.id") %>%
+    left_join(time_tx[c("millennium.id", "perc.time")], by = "millennium.id") %>%
+    left_join(warfarin_indications, by = "millennium.id")
 
 # save data --------------------------------------------
 
