@@ -234,6 +234,36 @@ data_warfarin <- patient_groups %>%
     left_join(time_tx[c("millennium.id", "perc.time")], by = "millennium.id") %>%
     left_join(warfarin_indications, by = "millennium.id")
 
+# readmission ------------------------------------------
+
+raw_identifiers <- read_data(dir_raw, "identifiers") %>%
+    as.id()
+
+index_visits <- read_data(dir_raw, "patients", FALSE) %>%
+    as.patients() %>%
+    left_join(raw_identifiers[c("millennium.id", "person.id")], by = "millennium.id")
+
+unique_pts <- distinct(index_visits, person.id)
+
+readmits <- c("Inpatient", "Emergency", "Observation", "72 Hour ER", "EC Fast ER Care")
+dispos <- c("Home or Self Care", "Home Care with Home Health")
+
+data_revisits <- read_data(dir_raw, "encounters") %>%
+    as.encounters() %>%
+    semi_join(unique_pts, by = "person.id") %>%
+    left_join(index_visits[c("millennium.id", "discharge.datetime")], by = "millennium.id") %>%
+    filter(visit.type %in% readmits | !is.na(discharge.datetime)) %>%
+    group_by(person.id) %>%
+    arrange(admit.datetime, .by_group = TRUE) %>%
+    mutate(next_encounter = difftime(discharge.datetime, lag(admit.datetime), units = "days"),
+           revisit_millennium_id = lag(millennium.id),
+           revisit_facility = lag(facility),
+           revisit_visit_type = lag(visit.type)) %>%
+    filter(disposition %in% dispos,
+           next_encounter <= 30) %>%
+    left_join(patient_groups, by = "millennium.id") %>%
+    left_join(warfarin_dates, by = "millennium.id")
+
 # save data --------------------------------------------
 
 dirr::save_rds("data/tidy", "data_")
