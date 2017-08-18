@@ -140,11 +140,9 @@ data_warfarin %>%
     theme(legend.position = "bottom")
 ```
 
-# Efficacy Assessment
+# Dosing and INR Response
 
-In looking at the warfarin doses administered on each of the first 7 days of therapy, there is a higher initial dose ordered by the Pharmacy Dosing Service (see Figure 4).
-
-```{r, fig.cap="Distribution of warfarin dose by day of therapy. The p-value is < 0.01 for each day of warfarin."}
+```{r}
 daily <- data_daily %>%
     ungroup() %>%
     filter(warfarin_day <= 7,
@@ -154,6 +152,21 @@ daily <- data_daily %>%
     mutate_at("group", factor, levels = c("traditional", "pharmacy")) %>%
     mutate_at("warfarin_day", as.integer) %>%
     mutate_at("warfarin_day", factor) 
+
+pharm <- daily %>%
+    filter(group == "pharmacy") %>%
+    distinct(millennium.id) %>%
+    nrow()
+
+trad <- daily %>%
+    filter(group == "traditional") %>%
+    distinct(millennium.id) %>%
+    nrow()
+```
+
+There were `r format(pharm, big.mark = ",")` patients in the Pharmacy Dosing Service group, and `r format(trad, big.mark = ",")` patients in the traditional management group. In looking at the warfarin doses administered on each of the first 7 days of therapy, there is a higher initial dose ordered by the Pharmacy Dosing Service (see Figure 4).
+
+```{r, fig.cap="Distribution of warfarin dose by day of therapy. The p-value is < 0.01 for each day of warfarin."}
 
 p <- daily %>%
     group_by(warfarin_day) %>%
@@ -171,7 +184,7 @@ ggplot(daily, aes(x = warfarin_day, y = med.dose, fill = group)) +
 
 Patients managed by the Pharmacy Dosing Service have a slightly higher rise in INR over the first 7 days of therapy, and are more likely to reach an INR around 2 by day 5. 
 
-```{r, fig.cap="INR response during the first 7 days of warfarin therapy. The p-value was < 0.001 for all days except day 3 (p = 0.038) and day 4 (p = 0.388). Patients with an INR target below 2 were excluded from this figure. The usual therapeutic INR range of 2 to 3 is shaded."}
+```{r, fig.cap="INR response during the first 7 days of warfarin therapy. The p-value was < 0.001 for all days except day 3 (p = 0.038) and day 4 (p = 0.388). Patients with an INR target below 2 were excluded from this figure. The usual therapeutic INR range of 2 to 3 is shaded for reference."}
 inr <- data_daily %>%
     left_join(data_warfarin[c("millennium.id", "goal.low")], by = "millennium.id") %>%
     ungroup() %>%
@@ -228,10 +241,10 @@ t.test(ttr_pharm17$perc.time, ttr_pharm16$perc.time, var.equal = TRUE) %>%
     knitr::kable(digits = 3, caption = "Percent time in therapeutic range, FY17 pharmacy vs. FY16 pharmacy")
 ```
 
-# Safety Assessment
+# Safety and Disposition
 
 ```{r}
-data_hgb_drop %>%
+tbl_hgb <- data_hgb_drop %>%
     inner_join(data_warfarin[c("millennium.id", "group", "warfarin_start")], by = "millennium.id") %>%
     filter(warfarin_start >= mdy("7/1/2016", tz = "US/Central"),
            warfarin_start <= mdy("6/30/2017", tz = "US/Central")) %>%
@@ -239,12 +252,66 @@ data_hgb_drop %>%
     summarize_at("hgb_drop", mean) %>%
     mutate_at("hgb_drop", funs(. * 100)) %>%
     spread(group, hgb_drop) %>%
-    mutate(Outcome = "Hgb drop") %>%
+    mutate(Outcome = "Hemoglobin decrease by >/= 2 g/dL within a 48-hour period") 
+
+tmp_hgb <- data_hgb_drop %>%
+    inner_join(data_warfarin[c("millennium.id", "group", "warfarin_start")], by = "millennium.id") %>%
+    filter(warfarin_start >= mdy("7/1/2016", tz = "US/Central"),
+           warfarin_start <= mdy("6/30/2017", tz = "US/Central")) %>%
+    mutate(drop = if_else(hgb_drop, "drop", "no_drop")) %>%
+    mutate_at(c("hgb_drop", "group"), factor)
+
+p_hgb <- chisq.test(tmp_hgb$group, tmp_hgb$drop)
+```
+
+```{r}
+revisit_all <- data_warfarin %>%
+    select(millennium.id, group, warfarin_start) %>%
+    left_join(data_revisits[c("millennium.id", "next_encounter", "revisit_facility", "revisit_visit_type")], by = "millennium.id") %>%
+    filter(warfarin_start >= mdy("7/1/2016", tz = "US/Central"),
+           warfarin_start <= mdy("6/30/2017", tz = "US/Central")) 
+
+tbl_revisit <- revisit_all %>%
+    mutate(revisit = !is.na(revisit_facility)) %>%
+    group_by(group) %>%
+    summarize_at("revisit", mean) %>%
+    mutate_at("revisit", funs(. * 100)) %>%
+    spread(group, revisit) %>%
+    mutate(Outcome = "Revisit to any MH hospital within 30 days") 
+
+tmp_revisit <- revisit_all %>%
+    mutate(revisit = if_else(!is.na(revisit_facility), "revisit", "no_revisit")) %>%
+    mutate_at(c("group", "revisit"), factor)
+
+p_revisit <- chisq.test(tmp_revisit$group, tmp_revisit$revisit)
+```
+
+```{r}
+tbl_readmit <- revisit_all %>%
+    mutate(readmit = revisit_visit_type == "Inpatient" & !is.na(revisit_facility)) %>%
+    group_by(group) %>%
+    summarize_at("readmit", mean) %>%
+    mutate_at("readmit", funs(. * 100)) %>%
+    spread(group, readmit) %>%
+    mutate(Outcome = "Readmit to any MH hospital within 30 days") 
+
+tmp_readmit <- revisit_all %>%
+    mutate(readmit = if_else(revisit_visit_type == "Inpatient", "readmit", "no_readmit", "no_readmit")) %>%
+    mutate_at(c("group", "readmit"), factor)
+
+p_readmit <- chisq.test(tmp_readmit$group, tmp_readmit$readmit)
+```
+
+```{r}
+p <- c(p_hgb$p.value, p_revisit$p.value, p_readmit$p.value)
+
+tbl_hgb %>%
+    bind_rows(tbl_revisit, tbl_readmit) %>%
     select(Outcome, Pharmacy = pharmacy, Traditional = traditional) %>%
-    knitr::kable(digits = 1, caption = "Hemoglobin decrease by >/= 2 g/dL within a 48-hour period")
+    mutate(`p-value` = p) %>%
+    knitr::kable(digits = c(0, 1, 1, 2), caption = "Adverse Outcomes")
 ```
 
 
-
-* Transfusion
+* Reversal agents
 * Readmission
