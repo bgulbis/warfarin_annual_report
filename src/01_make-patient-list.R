@@ -44,8 +44,8 @@ write_csv(save_pts, completed_pts, append = x)
 # run MBO queries:
 #   * Orders - Actions
 #       - Mnemonic (Primary Generic) FILTER ON: warfarin, Pharmacy Dosing Service(Warfarin), Pharmacy Dosing Service(Warfarin)., Pharmacy Dosing Service(Coumadin)
-#   * Medications - Inpatient - Prompt
-#       - Medication (Generic): warfarin
+#   * Medications - Inpatient - All
+#   * Blood Products
 #   * Demographics
 #   * Diagnosis - ICD-9/10-CM
 #   * Labs - CBC
