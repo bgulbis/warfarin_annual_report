@@ -66,23 +66,23 @@ patient_groups <- data_order_actions %>%
     rename(group = consult)
 
 # time series ------------------------------------------
-data_timeseries <- data_order_actions %>%
-    distinct(millennium.id, action.date, consult) %>%
-    group_by(millennium.id, action.date) %>%
-    mutate(value = TRUE,
-           consult = if_else(consult, "pharmacy", "traditional")) %>%
-    spread(consult, value) %>%
-    dmap_at("traditional", ~ coalesce(.x, TRUE)) %>%
-    ungroup() %>%
-    distinct() %>%
-    group_by(action.date) %>%
-    summarize_at(c("pharmacy", "traditional"), sum, na.rm = TRUE) %>%
-    mutate(traditional = traditional - pharmacy,
-           month = floor_date(action.date, unit = "month"),
-           fy_month = month + months(6),
-           fy = year(fy_month)) %>%
-    filter(action.date >= mdy("7/1/2014"),
-           action.date <= mdy(end_date))
+# data_timeseries <- data_order_actions %>%
+#     distinct(millennium.id, action.date, consult) %>%
+#     group_by(millennium.id, action.date) %>%
+#     mutate(value = TRUE,
+#            consult = if_else(consult, "pharmacy", "traditional")) %>%
+#     spread(consult, value) %>%
+#     dmap_at("traditional", ~ coalesce(.x, TRUE)) %>%
+#     ungroup() %>%
+#     distinct() %>%
+#     group_by(action.date) %>%
+#     summarize_at(c("pharmacy", "traditional"), sum, na.rm = TRUE) %>%
+#     mutate(traditional = traditional - pharmacy,
+#            month = floor_date(action.date, unit = "month"),
+#            fy_month = month + months(6),
+#            fy = year(fy_month)) %>%
+#     filter(action.date >= mdy("7/1/2014"),
+#            action.date <= mdy(end_date))
 
 data_timeseries_location <- data_order_actions %>%
     distinct(millennium.id, action.date, consult, order.location) %>%
@@ -263,6 +263,71 @@ data_revisits <- read_data(dir_raw, "encounters") %>%
            next_encounter <= 30) %>%
     left_join(patient_groups, by = "millennium.id") %>%
     left_join(warfarin_dates, by = "millennium.id")
+
+# procedures -------------------------------------------
+
+data_procedures <- read_data(dir_raw, "procedures", FALSE) %>%
+    as.procedures() %>%
+    left_join(warfarin_dates, by = "millennium.id") %>%
+    filter(proc.date >= warfarin_start + days(1),
+           proc.date <= warfarin_stop + days(1)) %>%
+    mutate(warf_day = difftime(proc.date, floor_date(warfarin_start, "day"), "days")) %>%
+    mutate_at("warf_day", as.numeric) %>%
+    mutate_at("warf_day", round, digits = 0) %>%
+    arrange(millennium.id, warf_day) %>%
+    distinct(millennium.id, warf_day)
+
+# blood produts ----------------------------------------
+
+raw_blood <- read_data(dir_raw, "blood", FALSE) %>%
+    as.blood()
+
+data_prbc <- raw_blood %>%
+    left_join(warfarin_dates, by = "millennium.id") %>%
+    filter(blood.prod == "prbc",
+           blood.datetime >= warfarin_start + days(1),
+           blood.datetime <= warfarin_stop + days(1)) %>%
+    mutate(prbc_day = difftime(floor_date(blood.datetime, "day"),
+                               floor_date(warfarin_start, "day"),
+                               "days")) %>%
+    mutate_at("prbc_day", as.numeric) %>%
+    mutate_at("prbc_day", round, digits = 0) %>%
+    arrange(millennium.id, prbc_day) %>%
+    distinct(millennium.id, prbc_day)
+
+data_ffp <- raw_blood %>%
+    left_join(warfarin_dates, by = "millennium.id") %>%
+    filter(blood.prod == "ffp",
+           blood.datetime >= warfarin_start + days(1),
+           blood.datetime <= warfarin_stop + days(1)) %>%
+    mutate(ffp_day = difftime(floor_date(blood.datetime, "day"),
+                              floor_date(warfarin_start, "day"),
+                              "days")) %>%
+    mutate_at("ffp_day", as.numeric) %>%
+    mutate_at("ffp_day", round, digits = 0) %>%
+    arrange(millennium.id, ffp_day) %>%
+    distinct(millennium.id, ffp_day)
+
+# reversal ---------------------------------------------
+
+rev_agent <- c("phytonadione",
+               "prothrombin complex",
+               "coagulation factor VIIa",
+               "aminocaproic acid",
+               "tranexamic acid")
+
+data_reversal <- raw_meds %>%
+    filter(med %in% rev_agent) %>%
+    left_join(warfarin_dates, by = "millennium.id") %>%
+    filter(med.datetime >= warfarin_start + days(1),
+           med.datetime <= warfarin_stop + days(1)) %>%
+    mutate(rev_day = difftime(floor_date(med.datetime, "day"),
+                              floor_date(warfarin_start, "day"),
+                              "days")) %>%
+    mutate_at("rev_day", as.numeric) %>%
+    mutate_at("rev_day", round, digits = 0) %>%
+    arrange(millennium.id, rev_day) %>%
+    distinct(millennium.id, rev_day, med)
 
 # save data --------------------------------------------
 

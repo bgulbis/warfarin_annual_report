@@ -182,7 +182,7 @@ ggplot(daily, aes(x = warfarin_day, y = med.dose, fill = group)) +
     theme(legend.position = "bottom")
 ```
 
-Patients managed by the Pharmacy Dosing Service have a slightly higher rise in INR over the first 7 days of therapy, and are more likely to reach an INR around 2 by day 5. 
+Patients managed by the Pharmacy Dosing Service have a greater rise in INR over the first 7 days of therapy, and are more likely to reach an INR around 2 by day 5. 
 
 ```{r, fig.cap="INR response during the first 7 days of warfarin therapy. The p-value was < 0.001 for all days except day 3 (p = 0.038) and day 4 (p = 0.388). Patients with an INR target below 2 were excluded from this figure. The usual therapeutic INR range of 2 to 3 is shaded for reference."}
 inr <- data_daily %>%
@@ -241,7 +241,9 @@ t.test(ttr_pharm17$perc.time, ttr_pharm16$perc.time, var.equal = TRUE) %>%
     knitr::kable(digits = 3, caption = "Percent time in therapeutic range, FY17 pharmacy vs. FY16 pharmacy")
 ```
 
-# Safety and Disposition
+# Outcomes and Events
+
+There was a significantly higher number of patients who returned to a MH facility within 30 days in the traditional group, however, the percent of readmissions was not significantly different (see Table 1). There was no difference in acute hemoglobin decrease. 
 
 ```{r}
 tbl_hgb <- data_hgb_drop %>%
@@ -249,10 +251,10 @@ tbl_hgb <- data_hgb_drop %>%
     filter(warfarin_start >= mdy("7/1/2016", tz = "US/Central"),
            warfarin_start <= mdy("6/30/2017", tz = "US/Central")) %>%
     group_by(group) %>%
-    summarize_at("hgb_drop", mean) %>%
+    summarize_at("hgb_drop", mean, na.rm = TRUE) %>%
     mutate_at("hgb_drop", funs(. * 100)) %>%
     spread(group, hgb_drop) %>%
-    mutate(Outcome = "Hemoglobin decrease by >/= 2 g/dL within a 48-hour period") 
+    mutate(Event = "Hemoglobin decrease by >/= 2 g/dL within a 48-hour period") 
 
 tmp_hgb <- data_hgb_drop %>%
     inner_join(data_warfarin[c("millennium.id", "group", "warfarin_start")], by = "millennium.id") %>%
@@ -265,6 +267,94 @@ p_hgb <- chisq.test(tmp_hgb$group, tmp_hgb$drop)
 ```
 
 ```{r}
+prbc <- data_warfarin %>%
+    select(millennium.id, group, warfarin_start) %>%
+    left_join(data_prbc, by = "millennium.id") %>%
+    filter(warfarin_start >= mdy("7/1/2016", tz = "US/Central"),
+           warfarin_start <= mdy("6/30/2017", tz = "US/Central")) 
+
+tbl_prbc <- prbc %>%
+    mutate(prbc = !is.na(prbc_day)) %>%
+    group_by(group) %>%
+    summarize_at("prbc", mean, na.rm = TRUE) %>%
+    mutate_at("prbc", funs(. * 100)) %>%
+    spread(group, prbc) %>%
+    mutate(Event = "Transfusion PRBC") 
+
+tmp_prbc <- prbc %>%
+    mutate(prbc = if_else(!is.na(prbc_day), "prbc", "no_prbc")) %>%
+    mutate_at(c("group", "prbc"), factor)
+
+p_prbc <- chisq.test(tmp_prbc$group, tmp_prbc$prbc)
+```
+
+```{r}
+ffp <- data_warfarin %>%
+    select(millennium.id, group, warfarin_start) %>%
+    left_join(data_ffp, by = "millennium.id") %>%
+    filter(warfarin_start >= mdy("7/1/2016", tz = "US/Central"),
+           warfarin_start <= mdy("6/30/2017", tz = "US/Central")) 
+
+tbl_ffp <- ffp %>%
+    mutate(ffp = !is.na(ffp_day)) %>%
+    group_by(group) %>%
+    summarize_at("ffp", mean, na.rm = TRUE) %>%
+    mutate_at("ffp", funs(. * 100)) %>%
+    spread(group, ffp) %>%
+    mutate(Event = "Transfusion FFP") 
+
+tmp_ffp <- ffp %>%
+    mutate(ffp = if_else(!is.na(ffp_day), "ffp", "no_ffp")) %>%
+    mutate_at(c("group", "ffp"), factor)
+
+p_ffp <- chisq.test(tmp_ffp$group, tmp_ffp$ffp)
+```
+
+```{r}
+reversal <- data_warfarin %>%
+    select(millennium.id, group, warfarin_start) %>%
+    left_join(data_reversal, by = "millennium.id") %>%
+    filter(warfarin_start >= mdy("7/1/2016", tz = "US/Central"),
+           warfarin_start <= mdy("6/30/2017", tz = "US/Central")) 
+
+tbl_reversal <- reversal %>%
+    mutate(reversal = !is.na(rev_day)) %>%
+    group_by(group) %>%
+    summarize_at("reversal", mean, na.rm = TRUE) %>%
+    mutate_at("reversal", funs(. * 100)) %>%
+    spread(group, reversal) %>%
+    mutate(Event = "Reversal Medication") 
+
+tmp_reversal <- reversal %>%
+    mutate(reversal = if_else(!is.na(rev_day), "reversal", "no_reversal")) %>%
+    mutate_at(c("group", "reversal"), factor)
+
+p_reversal <- chisq.test(tmp_reversal$group, tmp_reversal$reversal)
+```
+
+```{r}
+procedures <- data_warfarin %>%
+    select(millennium.id, group, warfarin_start) %>%
+    left_join(data_procedures, by = "millennium.id") %>%
+    filter(warfarin_start >= mdy("7/1/2016", tz = "US/Central"),
+           warfarin_start <= mdy("6/30/2017", tz = "US/Central")) 
+
+tbl_procedures <- procedures %>%
+    mutate(procedures = !is.na(warf_day)) %>%
+    group_by(group) %>%
+    summarize_at("procedures", mean, na.rm = TRUE) %>%
+    mutate_at("procedures", funs(. * 100)) %>%
+    spread(group, procedures) %>%
+    mutate(Event = "Procedure") 
+
+tmp_procedures <- procedures %>%
+    mutate(procedures = if_else(!is.na(warf_day), "procedure", "no_procedure")) %>%
+    mutate_at(c("group", "procedures"), factor)
+
+p_procedures <- chisq.test(tmp_procedures$group, tmp_procedures$procedures)
+```
+
+```{r}
 revisit_all <- data_warfarin %>%
     select(millennium.id, group, warfarin_start) %>%
     left_join(data_revisits[c("millennium.id", "next_encounter", "revisit_facility", "revisit_visit_type")], by = "millennium.id") %>%
@@ -274,10 +364,10 @@ revisit_all <- data_warfarin %>%
 tbl_revisit <- revisit_all %>%
     mutate(revisit = !is.na(revisit_facility)) %>%
     group_by(group) %>%
-    summarize_at("revisit", mean) %>%
+    summarize_at("revisit", mean, na.rm = TRUE) %>%
     mutate_at("revisit", funs(. * 100)) %>%
     spread(group, revisit) %>%
-    mutate(Outcome = "Revisit to any MH hospital within 30 days") 
+    mutate(Event = "Revisit to any MH hospital within 30 days") 
 
 tmp_revisit <- revisit_all %>%
     mutate(revisit = if_else(!is.na(revisit_facility), "revisit", "no_revisit")) %>%
@@ -290,10 +380,10 @@ p_revisit <- chisq.test(tmp_revisit$group, tmp_revisit$revisit)
 tbl_readmit <- revisit_all %>%
     mutate(readmit = revisit_visit_type == "Inpatient" & !is.na(revisit_facility)) %>%
     group_by(group) %>%
-    summarize_at("readmit", mean) %>%
+    summarize_at("readmit", mean, na.rm = TRUE) %>%
     mutate_at("readmit", funs(. * 100)) %>%
     spread(group, readmit) %>%
-    mutate(Outcome = "Readmit to any MH hospital within 30 days") 
+    mutate(Event = "Readmission to any MH hospital within 30 days") 
 
 tmp_readmit <- revisit_all %>%
     mutate(readmit = if_else(revisit_visit_type == "Inpatient", "readmit", "no_readmit", "no_readmit")) %>%
@@ -303,15 +393,17 @@ p_readmit <- chisq.test(tmp_readmit$group, tmp_readmit$readmit)
 ```
 
 ```{r}
-p <- c(p_hgb$p.value, p_revisit$p.value, p_readmit$p.value)
+p <- c(p_hgb$p.value, p_prbc$p.value, p_ffp$p.value, p_reversal$p.value, p_procedures$p.value, p_revisit$p.value, p_readmit$p.value)
 
 tbl_hgb %>%
-    bind_rows(tbl_revisit, tbl_readmit) %>%
-    select(Outcome, Pharmacy = pharmacy, Traditional = traditional) %>%
+    bind_rows(tbl_prbc, tbl_ffp, tbl_reversal, tbl_procedures, tbl_revisit, tbl_readmit) %>%
+    select(Event, Pharmacy = pharmacy, Traditional = traditional) %>%
     mutate(`p-value` = p) %>%
-    knitr::kable(digits = c(0, 1, 1, 2), caption = "Adverse Outcomes")
+    knitr::kable(digits = c(0, 1, 1, 2), caption = "Events during the first 7 days of warfarin therapy")
 ```
 
-
 * Reversal agents
-* Readmission
+* Transfusion
+
+# Conclusion
+
