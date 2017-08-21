@@ -72,16 +72,16 @@ data_timeseries_location %>%
     geom_line(aes(linetype = group)) +
     geom_smooth(aes(linetype = group), method = "lm", color = "black", se = FALSE) +
     # ggtitle("Warfarin Volume") +
-    scale_x_datetime("", date_labels = "%b %Y") +
+    scale_x_datetime(NULL, date_labels = "%b %Y") +
     ylab("Weekly Patients") +
-    scale_linetype_discrete("", labels = c("Pharmacy", "Traditional")) +
+    scale_linetype_discrete(NULL, labels = c("Pharmacy", "Traditional")) +
     theme_bg(base_family = "serif") +
     theme(legend.position = "bottom")
 ```
 
 The highest volume of warfarin use occured in the Heart Failure IMU, followed by CIMU and CVIMU (see Figure 2). Among the units with the highest warfarin volume, the Pharmacy Dosing Service was responsible for managing warfarin in 50% or more of the patients in the CVIMU, Rehab, 3-Cullen, and Stroke units. Utilization of the Pharmacy Dosing Service remains low in both HFIMU and CIMU, although Clinical Pharmacists and Clinical Pharmacist-Specialists participated in the management of warfarin in both of these areas.
 
-```{r, fig.cap="Top 10 hospital units administering warfarin in FY17. For comparison, FY16 data is provided: the X indicates warfarin managed by Pharmacy Dosing Service in each unit in FY16, the | indicates the total warfarin in each unit in FY16."}
+```{r, fig.align='center', fig.height=4, out.height='3in', fig.cap="Top 10 hospital units administering warfarin in FY17. For comparison, FY16 data is provided: the X indicates warfarin managed by Pharmacy Dosing Service in each unit in FY16, the | indicates the total warfarin in each unit in FY16."}
 units17 <- data_timeseries_location %>%
     filter(fy == 2017) %>%
     group_by(order.location) %>%
@@ -111,16 +111,16 @@ ggplot() +
     # ggtitle("Warfarin Utilization by Hospital Unit") +
     xlab("Hospital Unit") +
     ylab("Warfarin Doses Administered") +
-    scale_fill_brewer("", palette = "Greys", labels = c("Traditional", "Pharmacy")) +
+    scale_fill_brewer(NULL, palette = "Greys", labels = c("Traditional", "Pharmacy")) +
     # scale_fill_manual("", values = c("#636363", "#bdbdbd"), labels = c("Pharmacy", "Traditional")) +
     coord_flip() +
-    theme_bg(base_family = "serif") +
+    theme_bg(base_family = "serif", yticks = FALSE) +
     theme(legend.position = "bottom")
 ```
 
 The Pharmacy Dosing Service managed a higher percent of patients with venous thromboembolism and mechanical heart valves, while the traditional management was responsible for a higher percent of patients with mechanical circulatory support devices (see Figure 3). There was a similar percent of patients with atrial fibrillation in both groups.
 
-```{r, fig.cap="Percent of patients with each warfarin indication among patients managed by pharmacy and traditional."}
+```{r, fig.align='center', fig.height=4, out.height='3in', fig.cap="Percent of patients with each warfarin indication among patients managed by pharmacy and traditional."}
 data_warfarin %>%
     filter(warfarin_start >= start_date,
            warfarin_start <= end_date) %>%
@@ -137,7 +137,7 @@ data_warfarin %>%
     # ggtitle("Warfarin Indications") +
     scale_x_discrete("Indication", labels = c("Hypercoaguable", "VAD", "Stroke", "Other", "Thrombus", "PE", "Valve", "DVT", "A.fib")) +
     ylab("Patients (%)") +
-    scale_fill_brewer("", palette = "Greys", labels = c("Traditional", "Pharmacy")) +
+    scale_fill_brewer(NULL, palette = "Greys", labels = c("Traditional", "Pharmacy")) +
     coord_flip() +
     theme_bg(base_family = "serif", yticks = FALSE) +
     theme(legend.position = "bottom")
@@ -170,7 +170,6 @@ trad <- daily %>%
 There were `r format(pharm, big.mark = ",")` patients in the Pharmacy Dosing Service group, and `r format(trad, big.mark = ",")` patients in the traditional management group. In comparing the warfarin doses administered on each of the first 7 days of therapy, there was a higher initial dose ordered by the Pharmacy Dosing Service (see Figure 4).
 
 ```{r, fig.cap="Distribution of warfarin dose by day of therapy. The p-value is < 0.01 for each day of warfarin."}
-
 p <- daily %>%
     group_by(warfarin_day) %>%
     do(tidy(wilcox.test(med.dose ~ group, data = .))) %>%
@@ -180,7 +179,7 @@ ggplot(daily, aes(x = warfarin_day, y = med.dose, fill = group)) +
     geom_boxplot() +
     xlab("Day of therapy") +
     ylab("Warfarin dose (mg)") +
-    scale_fill_brewer("", palette = "Greys", labels = c("Traditional", "Pharmacy")) +
+    scale_fill_brewer(NULL, palette = "Greys", labels = c("Traditional", "Pharmacy")) +
     theme_bg(base_family = "serif") +
     theme(legend.position = "bottom")
 ```
@@ -210,7 +209,7 @@ ggplot(inr, aes(x = warfarin_day, y = inr, linetype = group)) +
     geom_smooth(color = "black") +
     scale_x_continuous("Day of therapy", breaks = seq(1, 7, 1)) +
     ylab("INR") +
-    scale_linetype_discrete("", labels = c("Pharmacy", "Traditional")) +
+    scale_linetype_discrete(NULL, labels = c("Pharmacy", "Traditional")) +
     coord_cartesian(ylim = c(1, 3.5)) +
     theme_bg(base_family = "serif") +
     theme(legend.position = "bottom")
@@ -231,7 +230,7 @@ ttr_pharm17 %>%
     geom_label(aes(x = 1.5, y = 50, label = round(p1$p.value, 2)), size = 3, color = "grey35") +
     geom_label(aes(x = 2.5, y = 75, label = round(p2$p.value, 2)), size = 3, color = "grey35") +
     geom_boxplot() +
-    scale_x_discrete("", labels = c("Pharmacy", "Traditional", "Pharmacy FY16")) +
+    scale_x_discrete(NULL, labels = c("Pharmacy", "Traditional", "Pharmacy FY16")) +
     ylab("Time in Therapeutic Range (%)") +
     theme_bg(xticks = FALSE, base_family = "serif")
 ```
