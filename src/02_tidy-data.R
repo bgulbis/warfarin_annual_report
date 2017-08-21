@@ -162,21 +162,17 @@ labs_hgb <- raw_labs %>%
 attr(labs_hgb, "data") <- "mbo"
 # hgb_drop <- lab_change(labs_hgb, "hgb", change.by = -2, max)
 
-hgb_drop <- labs_hgb %>%
+data_hgb_drop <- labs_hgb %>%
     group_by(millennium.id, lab) %>%
     arrange(lab.datetime, .by_group = TRUE) %>%
-    mutate(rowsback = edwr:::count_rowsback(lab.datetime, 2)) %>%
-    filter(!is.na(rowsback)) %>%
-    mutate(running = zoo::rollapplyr(lab.result, rowsback, max, fill = NA, partial = TRUE),
-           change = lab.result - running) %>%
-    filter(abs(change) >= abs(-2)) %>%
-    ungroup()
-
-data_hgb_drop <- hgb_drop %>%
-    distinct(millennium.id) %>%
-    mutate(hgb_drop = TRUE) %>%
-    full_join(data_demographics["millennium.id"], by = "millennium.id") %>%
-    mutate_at("hgb_drop", funs(coalesce(., FALSE)))
+    lab_change("hgb", -2, max) %>%
+    mutate(hgb_day = difftime(floor_date(lab.datetime, "day"),
+                              floor_date(warfarin_start, "day"),
+                              "days")) %>%
+    mutate_at("hgb_day", as.numeric) %>%
+    mutate_at("hgb_day", round, digits = 0) %>%
+    arrange(millennium.id, hgb_day) %>%
+    distinct(millennium.id, hgb_day, change)
 
 # warfarin information ---------------------------------
 raw_warfarin <- read_data(dir_raw, "warfarin-info", FALSE) %>%
