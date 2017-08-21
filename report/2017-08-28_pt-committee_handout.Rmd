@@ -218,7 +218,7 @@ ggplot(inr, aes(x = warfarin_day, y = inr, linetype = group)) +
 
 There was a greater time-in-therapeutic range for patients managed by the Pharmacy Dosing Service in FY17 compared with traditional management. In a historical comparison, there was no difference in the time-in-therapeutic range for patients managed by the Pharmacy Dosing Service in FY17 vs. FY16.
 
-```{r, fig.cap="Percent time in therapeutic range among patients managed by the Pharmacy Dosing Service in FY17 vs. Traditional management, as well as patients managed by the Pharmacy Dosing Service in FY17 vs. FY16. The p-value for each comparison is included on the figure."}
+```{r, fig.cap="Percent time in therapeutic range among patients managed by the Pharmacy Dosing Service in FY17 vs. Traditional management, as well as patients managed by the Pharmacy Dosing Service in FY17 vs. FY16. The p-value for each comparison is included on the figure.", cache=TRUE}
 p1 <- t.test(ttr_pharm17$perc.time, ttr_trad17$perc.time, var.equal = TRUE)
 p2 <- t.test(ttr_pharm17$perc.time, ttr_pharm16$perc.time, var.equal = TRUE)
 
