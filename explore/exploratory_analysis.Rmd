@@ -1,0 +1,244 @@
+---
+title: "Warfarin Dosing Service"
+subtitle: "Exploratory Data Analysis"
+author: "Brian Gulbis"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: 
+  html_document:
+    code_folding: hide
+    fig_caption: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r data, message=FALSE}
+library(tidyverse)
+library(purrrlyr)
+library(lubridate)
+library(forcats)
+library(broom)
+library(xts)
+library(dygraphs)
+library(plotly)
+library(RColorBrewer)
+library(themebg)
+
+x <- dirr::get_rds("../data/tidy")
+```
+
+# Questions
+
+1. Number of daily patients managed by pharmacy consult vs. traditional
+1. Which services are using consult service
+1. Which units are using consult service
+1. How does 2016 compare with 2015
+1. Indications for warfarin in each group
+
+```{r}
+as.matrix(data_timeseries[, 2:3]) %>% 
+    as.xts(order.by = data_timeseries$action.date, tzone = "US/Central") %>%
+    dygraph(main = "Daily Warfarin Orders") %>%
+    dySeries("pharmacy", label = "Pharmacy") %>%
+    dySeries("traditional", label = "Traditional") %>%
+    dyOptions(colors = brewer.pal(3, "Set1")) %>%
+    dyRoller(rollPeriod = 5) %>%
+    dyRangeSelector(c("2016-07-01", "2017-06-30")) 
+    # dyRangeSelector(c(max(data_timeseries$action.date) - months(12), max(data_timeseries$action.date)))
+```
+
+
+```{r, fig.cap="Distribution of warfarin dose by day of therapy for FY17"}
+data_daily %>%
+    ungroup() %>%
+    filter(warfarin_day <= 10,
+           med.datetime >= mdy("7/1/2016", tz = "US/Central"),
+           med.datetime <= mdy("6/30/2017", tz = "US/Central")) %>%
+    left_join(data_warfarin[c("millennium.id", "group", "initiation", "indication_group")], by = "millennium.id") %>%
+    mutate_at("warfarin_day", as.integer) %>%
+    mutate_at("warfarin_day", factor) %>%
+    plot_ly(x = ~warfarin_day, y = ~med.dose, split = ~group) %>%
+    add_boxplot() %>%
+    layout(xaxis = list(title = "Day of therapy"),
+           yaxis = list(title = "Warfarin dose (mg)"))
+```
+
+```{r, eval=FALSE}
+gp <- ggplot(p, aes(x = warfarin_day, y = med.dose, color = group)) +
+    geom_boxplot() +
+    xlab("Day of therapy") +
+    ylab("Warfarin dose (mg)") +
+    scale_color_brewer("Group", palette = "Set1", labels = c("Pharmacy", "Traditional")) +
+    theme_bg()
+
+ggplotly(gp, dynamicTicks = TRUE)
+```
+
+```{r, eval=FALSE}
+data_daily %>%
+    ungroup() %>%
+    filter(warfarin_day <= 10,
+           med.datetime >= mdy("7/1/2016", tz = "US/Central"),
+           med.datetime <= mdy("6/30/2017", tz = "US/Central"),
+           !is.na(inr)) %>%
+    left_join(data_warfarin[c("millennium.id", "group", "initiation", "indication_group")], by = "millennium.id") %>%
+    filter(!is.na(indication_group)) %>%
+    mutate_at("warfarin_day", as.numeric) %>%
+    # group_by(group, warfarin_day) %>%
+    ggplot(aes(x = warfarin_day, y = inr, color = group)) +
+    # geom_point(shape = 1) +
+    geom_smooth() +
+    scale_x_continuous(breaks = seq(0, 10, 2)) +
+    facet_wrap(~ indication_group) +
+    theme_bg()
+
+# x <- ggplot_build(df)$data[[1]]
+    
+```
+
+```{r, message=FALSE, warning=FALSE}
+se_line <- "rgba(7, 164, 181, 0.05)"
+se_fill <- "rgba(7, 164, 181, 0.2)"
+
+df <- data_daily %>%
+    ungroup() %>%
+    filter(warfarin_day <= 10,
+           med.datetime >= mdy("7/1/2016", tz = "US/Central"),
+           med.datetime <= mdy("6/30/2017", tz = "US/Central"),
+           !is.na(inr)) %>%
+    left_join(data_warfarin[c("millennium.id", "group", "initiation", "indication_group")], by = "millennium.id") %>%
+    mutate_at("warfarin_day", as.numeric) 
+
+df_pharm <- filter(df, group == "pharmacy")
+df_trad <- filter(df, group == "traditional")
+
+m_pharm <- loess(inr ~ warfarin_day, data = df, subset = group == "pharmacy")
+m_trad <- loess(inr ~ warfarin_day, data = df, subset = group == "traditional")
+
+plot_ly(x = ~warfarin_day) %>%
+    add_lines(data = df_pharm, 
+              y = ~fitted(m_pharm), 
+              name = "Pharmacy", 
+              legendgroup = "pharm") %>%
+    add_lines(data = df_trad, 
+              y = ~fitted(m_trad), 
+              name = "Traditional", 
+              legendgroup = "trad") %>%
+    add_ribbons(data = augment(m_pharm),
+                ymin = ~.fitted - 1.96 * .se.fit,
+                ymax = ~.fitted + 1.96 * .se.fit,
+                line = list(color = se_line),
+                fillcolor = se_fill,
+                showlegend = FALSE,
+                legendgroup = "pharm") %>%
+    add_ribbons(data = augment(m_trad),
+                ymin = ~.fitted - 1.96 * .se.fit,
+                ymax = ~.fitted + 1.96 * .se.fit,
+                line = list(color = se_line),
+                fillcolor = se_fill,
+                showlegend = FALSE,
+                legendgroup = "trad") %>%
+    layout(xaxis = list(title = "Day of Warfarin"),
+           yaxis = list(title = "INR"))
+```
+
+
+```{r, fig.cap="Relationship between warfarin dose and INR in FY17"}
+data_daily %>%
+    ungroup() %>%
+    filter(warfarin_day <= 10,
+           med.dose > 0,
+           med.dose <= 15,
+           !is.na(inr),
+           med.datetime >= mdy("7/1/2016", tz = "US/Central"),
+           med.datetime <= mdy("6/30/2017", tz = "US/Central")) %>%
+    # dmap_at("warfarin_day", as.integer) %>%
+    left_join(data_warfarin[c("millennium.id", "group", "initiation", "indication_group")], by = "millennium.id") %>%
+    plot_ly() %>%
+    # add_markers(x = ~med.dose, y = ~inr, split = ~group, marker = list(symbol = "circle-open")) %>%
+    add_boxplot(x = ~med.dose, y = ~inr, split = ~group) %>%
+    layout(xaxis = list(title = "Warfarin dose (mg)"),
+           yaxis = list(title = "INR"))
+#     
+#     
+#     ggplot(aes(x = med.dose, y = inr)) +
+#     geom_point(aes(color = group), shape = 1) +
+#     xlab("Warfarin dose (mg)") +
+#     ylab("INR") +
+#     scale_color_brewer("Group", palette = "Set1", labels = c("Pharmacy", "Traditional")) +
+#     theme_bg()
+# 
+# ggplotly(p, dynamicTicks = TRUE)
+```
+
+```{r}
+data_warfarin %>%
+    filter(warfarin_start >= mdy("7/1/2016", tz = "US/Central"),
+           warfarin_start <= mdy("6/30/2017", tz = "US/Central")) %>%
+    group_by(group) %>%
+    summarize_if(is.logical, funs(mean(., na.rm = TRUE) * 100)) %>%
+    gather(indication, val, afib:other) %>%
+    arrange(group, desc(val)) %>%
+    dmap_at("indication", fct_inorder) %>%
+    plot_ly(x = ~indication, y = ~val, split = ~group) %>%
+    add_bars() %>%
+    layout(xaxis = list(title = "Indication"),
+           yaxis = list(title = "Patients (%)"))
+
+#     ggplot(aes(x = indication, y = val, fill = group)) +
+#     geom_bar(stat = "identity", position = "dodge") +
+#     xlab("Indication") +
+#     ylab("Patients (%)") +
+#     scale_fill_brewer("Group", palette = "Set1") +
+#     theme_bg(xticks = FALSE)
+# 
+# ggplotly(p, dynamicTicks = TRUE)
+```
+
+```{r}
+data_doses_location %>%
+    ungroup() %>%
+    arrange(desc(n)) %>%
+    top_n(15, n) %>%
+    mutate_at("med.location", as_factor) %>%
+    mutate_at("med.location", fct_rev) %>%
+    plot_ly(x = ~n, y = ~med.location) %>%
+    add_bars(orientation = "h") %>%
+    layout(xaxis = list(title = "Number of Doses"),
+           yaxis = list(title = ""))
+```
+
+```{r}
+data_timeseries_location %>%
+    filter(week >= mdy("7/1/2016"),
+           week <= mdy("6/30/2017")) %>%
+    group_by(week) %>%
+    summarize_at(c("pharmacy", "traditional"), sum, na.rm = TRUE) %>%
+    gather(group, num, pharmacy, traditional) %>%
+    ggplot(aes(x = week, y = num, color = group)) +
+    geom_line() +
+    scale_color_brewer(palette = "Set1") +
+    theme_bg()
+```
+
+```{r}
+data_timeseries_location %>%
+    filter(week >= mdy("7/1/2016"),
+           week <= mdy("6/30/2017")) %>%
+    group_by(order.location) %>%
+    summarize_at(c("pharmacy", "traditional"), sum, na.rm = TRUE) %>%
+    mutate(total = pharmacy + traditional) %>%
+    arrange(desc(total)) %>%
+    top_n(20, total) %>%
+    gather(group, num, pharmacy, traditional) %>%
+    mutate_at("order.location", as_factor) %>%
+    mutate_at("order.location", fct_rev) %>%
+    ggplot(aes(x = order.location, y = num, fill = group)) +
+    geom_bar(stat = "identity") +
+    xlab("Hospital Unit") +
+    ylab("Number of Patients") +
+    scale_fill_brewer(palette = "Set1") +
+    coord_flip() +
+    theme_bg() 
+```
