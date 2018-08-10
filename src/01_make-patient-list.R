@@ -22,15 +22,14 @@ raw_patients <- read_data(dir_raw, "patients", FALSE) %>%
 id_mbo <- concat_encounters(raw_patients$millennium.id)
 
 # run MBO queries:
-#   * Orders - Actions
-#       - Mnemonic (Primary Generic) FILTER ON: warfarin, Pharmacy Dosing Service(Warfarin), Pharmacy Dosing Service(Warfarin)., Pharmacy Dosing Service(Coumadin)
-#   * Medications - Inpatient - All
 #   * Blood Products
 #   * Demographics
 #   * Diagnosis - ICD-9/10-CM
 #   * Labs - CBC
 #   * Labs - Coags
 #   * Labs - LFTs
+#   * Orders - Actions
+#       - Mnemonic (Primary Generic) FILTER ON: warfarin;Pharmacy Dosing Service(Warfarin);Pharmacy Dosing Service(Warfarin).;Pharmacy Dosing Service(Coumadin)
 #   * Procedures - ICD-9/10-PCS
 #   * Warfarin Information
 
@@ -41,7 +40,13 @@ id_mbo <- concat_encounters(raw_patients$millennium.id)
 persons <- read_data(dir_raw, "identifiers") %>%
     as.id()
 
-id_edw <- concat_encounters(persons_pull$person.id)
+id_edw <- concat_encounters(persons$person.id)
 
 # run EDW queries:
 #   * Encounters - by Person ID
+
+# run MBO queries:
+#   * Medications - Inpatient - All
+
+id_warf <- concat_encounters(raw_patients$millennium.id, 400)
+
