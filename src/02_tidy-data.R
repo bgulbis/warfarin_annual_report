@@ -431,4 +431,8 @@ data_reversal <- raw_meds %>%
 
 # save data --------------------------------------------
 
-dirr::save_rds("data/tidy", "data_")
+dir_tidy <- "data/tidy/fy2018"
+
+if (!dir.exists(dir_tidy)) dir.create(dir_tidy)
+
+dirr::save_rds(dir_tidy, "data_")
