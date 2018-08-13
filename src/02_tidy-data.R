@@ -292,26 +292,47 @@ raw_identifiers <- read_data(dir_raw, "identifiers") %>%
 
 index_visits <- read_data(dir_raw, "patients", FALSE) %>%
     as.patients() %>%
-    left_join(raw_identifiers[c("millennium.id", "person.id")], by = "millennium.id")
+    left_join(
+        raw_identifiers[c("millennium.id", "person.id")],
+        by = "millennium.id"
+    )
 
 unique_pts <- distinct(index_visits, person.id)
 
-readmits <- c("Inpatient", "Emergency", "Observation", "72 Hour ER", "EC Fast ER Care")
+readmits <- c(
+    "Inpatient",
+    "Emergency",
+    "Observation",
+    "72 Hour ER",
+    "EC Fast ER Care"
+)
+
 dispos <- c("Home or Self Care", "Home Care with Home Health")
 
 data_revisits <- read_data(dir_raw, "encounters") %>%
     as.encounters() %>%
     semi_join(unique_pts, by = "person.id") %>%
-    left_join(index_visits[c("millennium.id", "discharge.datetime")], by = "millennium.id") %>%
+    left_join(
+        index_visits[c("millennium.id", "discharge.datetime")],
+        by = "millennium.id"
+    ) %>%
     filter(visit.type %in% readmits | !is.na(discharge.datetime)) %>%
     group_by(person.id) %>%
     arrange(admit.datetime, .by_group = TRUE) %>%
-    mutate(next_encounter = difftime(discharge.datetime, lag(admit.datetime), units = "days"),
-           revisit_millennium_id = lag(millennium.id),
-           revisit_facility = lag(facility),
-           revisit_visit_type = lag(visit.type)) %>%
-    filter(disposition %in% dispos,
-           next_encounter <= 30) %>%
+    mutate(
+        next_encounter = difftime(
+            discharge.datetime,
+            lag(admit.datetime),
+            units = "days"
+        ),
+        revisit_millennium_id = lag(millennium.id),
+        revisit_facility = lag(facility),
+        revisit_visit_type = lag(visit.type)
+    ) %>%
+    filter(
+        disposition %in% dispos,
+        next_encounter <= 30
+    ) %>%
     left_join(patient_groups, by = "millennium.id") %>%
     left_join(warfarin_dates, by = "millennium.id")
 
@@ -320,9 +341,17 @@ data_revisits <- read_data(dir_raw, "encounters") %>%
 data_procedures <- read_data(dir_raw, "procedures", FALSE) %>%
     as.procedures() %>%
     left_join(warfarin_dates, by = "millennium.id") %>%
-    filter(proc.date >= warfarin_start + days(1),
-           proc.date <= warfarin_stop + days(1)) %>%
-    mutate(warf_day = difftime(proc.date, floor_date(warfarin_start, "day"), "days")) %>%
+    filter(
+        proc.date >= warfarin_start + days(1),
+        proc.date <= warfarin_stop + days(1)
+    ) %>%
+    mutate(
+        warf_day = difftime(
+            proc.date,
+            floor_date(warfarin_start, "day"),
+            "days"
+        )
+    ) %>%
     mutate_at("warf_day", as.numeric) %>%
     mutate_at("warf_day", round, digits = 0) %>%
     arrange(millennium.id, warf_day) %>%
@@ -335,12 +364,18 @@ raw_blood <- read_data(dir_raw, "blood", FALSE) %>%
 
 data_prbc <- raw_blood %>%
     left_join(warfarin_dates, by = "millennium.id") %>%
-    filter(blood.prod == "prbc",
-           blood.datetime >= warfarin_start + days(1),
-           blood.datetime <= warfarin_stop + days(1)) %>%
-    mutate(prbc_day = difftime(floor_date(blood.datetime, "day"),
-                               floor_date(warfarin_start, "day"),
-                               "days")) %>%
+    filter(
+        blood.prod == "prbc",
+        blood.datetime >= warfarin_start + days(1),
+        blood.datetime <= warfarin_stop + days(1)
+    ) %>%
+    mutate(
+        prbc_day = difftime(
+            floor_date(blood.datetime, "day"),
+            floor_date(warfarin_start, "day"),
+            "days"
+        )
+    ) %>%
     mutate_at("prbc_day", as.numeric) %>%
     mutate_at("prbc_day", round, digits = 0) %>%
     arrange(millennium.id, prbc_day) %>%
@@ -348,12 +383,18 @@ data_prbc <- raw_blood %>%
 
 data_ffp <- raw_blood %>%
     left_join(warfarin_dates, by = "millennium.id") %>%
-    filter(blood.prod == "ffp",
-           blood.datetime >= warfarin_start + days(1),
-           blood.datetime <= warfarin_stop + days(1)) %>%
-    mutate(ffp_day = difftime(floor_date(blood.datetime, "day"),
-                              floor_date(warfarin_start, "day"),
-                              "days")) %>%
+    filter(
+        blood.prod == "ffp",
+        blood.datetime >= warfarin_start + days(1),
+        blood.datetime <= warfarin_stop + days(1)
+    ) %>%
+    mutate(
+        ffp_day = difftime(
+            floor_date(blood.datetime, "day"),
+            floor_date(warfarin_start, "day"),
+            "days"
+        )
+    ) %>%
     mutate_at("ffp_day", as.numeric) %>%
     mutate_at("ffp_day", round, digits = 0) %>%
     arrange(millennium.id, ffp_day) %>%
@@ -361,20 +402,28 @@ data_ffp <- raw_blood %>%
 
 # reversal ---------------------------------------------
 
-rev_agent <- c("phytonadione",
-               "prothrombin complex",
-               "coagulation factor VIIa",
-               "aminocaproic acid",
-               "tranexamic acid")
+rev_agent <- c(
+    "phytonadione",
+    "prothrombin complex",
+    "coagulation factor VIIa",
+    "aminocaproic acid",
+    "tranexamic acid"
+)
 
 data_reversal <- raw_meds %>%
     filter(med %in% rev_agent) %>%
     left_join(warfarin_dates, by = "millennium.id") %>%
-    filter(med.datetime >= warfarin_start + days(1),
-           med.datetime <= warfarin_stop + days(1)) %>%
-    mutate(rev_day = difftime(floor_date(med.datetime, "day"),
-                              floor_date(warfarin_start, "day"),
-                              "days")) %>%
+    filter(
+        med.datetime >= warfarin_start + days(1),
+        med.datetime <= warfarin_stop + days(1)
+    ) %>%
+    mutate(
+        rev_day = difftime(
+            floor_date(med.datetime, "day"),
+            floor_date(warfarin_start, "day"),
+            "days"
+        )
+    ) %>%
     mutate_at("rev_day", as.numeric) %>%
     mutate_at("rev_day", round, digits = 0) %>%
     arrange(millennium.id, rev_day) %>%
