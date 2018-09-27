@@ -34,6 +34,8 @@ x <- dirr::get_rds("../data/tidy/fy2018")
 start_date <- mdy("7/1/2017", tz = "US/Central")
 end_date <- mdy("6/30/2018", tz = "US/Central")
 
+data_ts_2017 <- read_rds("../data/tidy/fy2017/data_timeseries_location.Rds")
+
 # ttr_pharm_prev <- data_warfarin %>%
 #     filter(!is.na(perc.time),
 #            warfarin_start >= mdy("7/1/2016", tz = "US/Central"),
@@ -62,6 +64,15 @@ ttr_trad_curr <- data_warfarin %>%
     ) %>%
     mutate_at("perc.time", as.numeric) %>%
     mutate_at("perc.time", funs(. * 100)) 
+
+my_scale_fill <- function(..., values) {
+    scale_fill_manual(
+        "", 
+        values = c("#969696", "#636363"), 
+        labels = c("Traditional", "Pharmacy")
+    )
+}
+
 ```
 
 # Summary
@@ -74,6 +85,7 @@ There has been a 20% increase in the number of warfarin patients being managed b
 
 ```{r, fig.cap="Number of Warfarin patients managed by Pharmacy Dosing Service compared with traditional management on a weekly basis from July 2016 through June 2018."}
 data_timeseries_location %>%
+    bind_rows(data_ts_2017) %>%
     filter(fy == 2017 | fy == 2018) %>%
     group_by(week) %>%
     summarize_at(c("pharmacy", "traditional"), sum, na.rm = TRUE) %>%
@@ -83,7 +95,7 @@ data_timeseries_location %>%
     geom_smooth(aes(linetype = group), method = "lm", color = "black", se = FALSE) +
     # ggtitle("Warfarin Volume") +
     scale_x_datetime(NULL, date_labels = "%b %Y") +
-    ylab("Weekly Patients") +
+    scale_y_continuous("Weekly Patients", breaks = seq(0, 300, 50)) +
     scale_linetype_discrete(NULL, labels = c("Pharmacy", "Traditional")) +
     theme_bg(base_family = "serif") +
     theme(legend.position = "bottom")
@@ -91,9 +103,12 @@ data_timeseries_location %>%
 
 The highest volume of warfarin use occured in the Heart Failure IMU, followed by CIMU and CVIMU (see Figure 2). Among the units with the highest warfarin volume, the Pharmacy Dosing Service was responsible for managing warfarin in 50% or more of the patients in the CVIMU, Rehab, 3-Cullen, and Stroke units. Utilization of the Pharmacy Dosing Service remains low in both HFIMU and CIMU, although Clinical Pharmacists and Clinical Pharmacist-Specialists participated in the management of warfarin in both of these areas.
 
-```{r, fig.align='center', fig.height=4, out.height='3in', fig.cap="Top 10 hospital units administering warfarin in FY17. For comparison, FY16 data is provided: the X indicates warfarin managed by Pharmacy Dosing Service in each unit in FY16, the | indicates the total warfarin in each unit in FY16."}
-units17 <- data_timeseries_location %>%
-    filter(fy == 2017) %>%
+```{r, fig.align='center', fig.height=4, out.height='3in', fig.cap="Top 10 hospital units administering warfarin in FY18."}
+# For comparison, FY16 data is provided: the X indicates warfarin managed by Pharmacy Dosing Service in each unit in FY16, the | indicates the total warfarin in each unit in FY16.
+
+
+data_timeseries_location %>%
+    filter(fy == 2018) %>%
     group_by(order.location) %>%
     summarize_at(c("pharmacy", "traditional"), sum, na.rm = TRUE) %>%
     mutate(total = pharmacy + traditional) %>%
@@ -103,26 +118,14 @@ units17 <- data_timeseries_location %>%
     mutate_at("group", factor, levels = c("traditional", "pharmacy")) %>%
     mutate_at("order.location", as_factor) %>%
     mutate_at("order.location", fct_rev) %>%
-    mutate(fy = 2017)
-
-units16 <- data_timeseries_location %>%
-    filter(fy == 2016) %>%
-    mutate_at("order.location", str_replace_all, pattern = "HH 5HVI", replacement = "HH HFIM") %>%
-    mutate_at("order.location", str_replace_all, pattern = "HH 3ECP|HH 3WCP", replacement = "HH 3CP") %>%   
-    group_by(order.location) %>%
-    summarize_at(c("pharmacy", "traditional"), sum, na.rm = TRUE) %>%
-    mutate(total = pharmacy + traditional) %>%
-    semi_join(units17, by = "order.location")
-
-ggplot() +
-    geom_bar(aes(x = order.location, y = num, fill = group), data = units17, stat = "identity") +
-    geom_errorbar(aes(x = order.location, ymin = total, ymax = total), data = units16, width = 0.5, color = "grey35") +
-    geom_point(aes(x = order.location, y = pharmacy), data = units16, shape = 4, color = "grey35") +
-    # ggtitle("Warfarin Utilization by Hospital Unit") +
+    ggplot(aes(x = order.location, y = num, fill = group)) +
+    geom_bar(stat = "identity") +
+    # geom_errorbar(aes(x = order.location, ymin = total, ymax = total), data = units16, width = 0.5, color = "grey35") +
+    # geom_point(aes(x = order.location, y = pharmacy), data = units16, shape = 4, color = "grey35") +
     xlab("Hospital Unit") +
     ylab("Warfarin Doses Administered") +
-    scale_fill_brewer(NULL, palette = "Greys", labels = c("Traditional", "Pharmacy")) +
-    # scale_fill_manual("", values = c("#636363", "#bdbdbd"), labels = c("Pharmacy", "Traditional")) +
+    # scale_fill_brewer(NULL, palette = "Greys", labels = c("Traditional", "Pharmacy")) +
+    my_scale_fill() +
     coord_flip() +
     theme_bg(base_family = "serif", yticks = FALSE) +
     theme(legend.position = "bottom")
@@ -132,8 +135,10 @@ The Pharmacy Dosing Service managed a higher percent of patients with venous thr
 
 ```{r, fig.align='center', fig.height=4, out.height='3in', fig.cap="Percent of patients with each warfarin indication among patients managed by pharmacy and traditional."}
 data_warfarin %>%
-    filter(warfarin_start >= start_date,
-           warfarin_start <= end_date) %>%
+    filter(
+        warfarin_start >= start_date,
+        warfarin_start <= end_date
+    ) %>%
     group_by(group) %>%
     summarize_if(is.logical, funs(mean(., na.rm = TRUE) * 100)) %>%
     gather(indication, val, afib:other) %>%
@@ -144,10 +149,21 @@ data_warfarin %>%
     filter(val > 0) %>%
     ggplot(aes(x = indication, y = val, fill = group)) +
     geom_bar(stat = "identity", position = "dodge") +
-    # ggtitle("Warfarin Indications") +
-    scale_x_discrete("Indication", labels = c("Hypercoaguable", "VAD", "Stroke", "Other", "Thrombus", "PE", "Valve", "DVT", "A.fib")) +
+    scale_x_discrete(
+        "Indication", 
+        labels = c(
+            "VAD", 
+            "Hypercoaguable", 
+            "Stroke", 
+            "Thrombus", 
+            "Valve", 
+            "PE", 
+            "DVT", 
+            "A.fib"
+        )
+    ) +
     ylab("Patients (%)") +
-    scale_fill_brewer(NULL, palette = "Greys", labels = c("Traditional", "Pharmacy")) +
+    my_scale_fill() +
     coord_flip() +
     theme_bg(base_family = "serif", yticks = FALSE) +
     theme(legend.position = "bottom")
@@ -158,10 +174,15 @@ data_warfarin %>%
 ```{r}
 daily <- data_daily %>%
     ungroup() %>%
-    filter(warfarin_day <= 7,
-           med.datetime >= start_date,
-           med.datetime <= end_date) %>%
-    left_join(data_warfarin[c("millennium.id", "group", "initiation", "indication_group")], by = "millennium.id") %>%
+    filter(
+        warfarin_day <= 7,
+        med.datetime >= start_date,
+        med.datetime <= end_date
+    ) %>%
+    left_join(
+        data_warfarin[c("millennium.id", "group", "initiation", "indication_group")], 
+        by = "millennium.id"
+    ) %>%
     mutate_at("group", factor, levels = c("traditional", "pharmacy")) %>%
     mutate_at("warfarin_day", as.integer) %>%
     mutate_at("warfarin_day", factor) 
@@ -188,24 +209,29 @@ p <- daily %>%
 ggplot(daily, aes(x = warfarin_day, y = med.dose, fill = group)) +
     geom_boxplot() +
     xlab("Day of therapy") +
-    ylab("Warfarin dose (mg)") +
-    scale_fill_brewer(NULL, palette = "Greys", labels = c("Traditional", "Pharmacy")) +
+    scale_y_continuous("Warfarin dose (mg)",  breaks = seq(0, 30, 2.5)) +
+    # scale_fill_brewer(NULL, palette = "Greys", labels = c("Traditional", "Pharmacy")) +
+    my_scale_fill() +
     theme_bg(base_family = "serif") +
     theme(legend.position = "bottom")
 ```
 
 Patients managed by the Pharmacy Dosing Service had a greater rise in INR over the first 7 days of therapy, and were more likely to reach an INR around 2 by day 5. 
 
-```{r, fig.cap="INR response during the first 7 days of warfarin therapy. The p-value was < 0.001 for all days except day 3 (p = 0.038) and day 4 (p = 0.388). Patients with an INR target below 2 were excluded from this figure. The usual therapeutic INR range of 2 to 3 is shaded for reference."}
+```{r, fig.cap="INR response during the first 7 days of warfarin therapy. The p-value was < 0.001 for all days except day 3 (p = 0.002) and day 4 (p = 0.869). Patients with an INR target below 2 were excluded from this figure. The usual therapeutic INR range of 2 to 3 is shaded for reference."}
 inr <- data_daily %>%
     left_join(data_warfarin[c("millennium.id", "goal.low")], by = "millennium.id") %>%
     ungroup() %>%
-    filter(warfarin_day <= 7,
-           med.datetime >= start_date,
-           med.datetime <= end_date,
-           !is.na(inr),
-           goal.low >= 2) %>%
-    left_join(data_warfarin[c("millennium.id", "group", "initiation", "indication_group")], by = "millennium.id") %>%
+    filter(
+        warfarin_day <= 7,
+        med.datetime >= start_date,
+        med.datetime <= end_date,
+        !is.na(inr),
+        goal.low >= 2
+    ) %>%
+    left_join(
+        data_warfarin[c("millennium.id", "group", "initiation", "indication_group")], 
+        by = "millennium.id") %>%
     mutate_at("warfarin_day", as.numeric) 
 
 p <- inr %>%
@@ -228,19 +254,20 @@ ggplot(inr, aes(x = warfarin_day, y = inr, linetype = group)) +
 There was a greater time-in-therapeutic range for patients managed by the Pharmacy Dosing Service in FY17 compared with traditional management. In a historical comparison, there was no difference in the time-in-therapeutic range for patients managed by the Pharmacy Dosing Service in FY17 vs. FY16.
 
 ```{r, fig.cap="Percent time in therapeutic range among patients managed by the Pharmacy Dosing Service in FY17 vs. Traditional management, as well as patients managed by the Pharmacy Dosing Service in FY17 vs. FY16. The p-value for each comparison is included on the figure.", cache=TRUE}
-p1 <- t.test(ttr_pharm17$perc.time, ttr_trad17$perc.time, var.equal = TRUE)
-p2 <- t.test(ttr_pharm17$perc.time, ttr_pharm16$perc.time, var.equal = TRUE)
+p1 <- t.test(ttr_pharm_curr$perc.time, ttr_trad_curr$perc.time, var.equal = TRUE)
+# p2 <- t.test(ttr_pharm17$perc.time, ttr_pharm16$perc.time, var.equal = TRUE)
 
-ttr_pharm17 %>%
-    bind_rows(ttr_trad17, ttr_pharm16) %>%
-    mutate_at("group", factor, levels = c("pharmacy", "traditional", "pharmacy_fy16")) %>%
+ttr_pharm_curr %>%
+    bind_rows(ttr_trad_curr) %>%
+    # bind_rows(ttr_trad17, ttr_pharm16) %>%
+    mutate_at("group", factor, levels = c("pharmacy", "traditional")) %>%
     ggplot(aes(x = group, y = perc.time)) +
     geom_segment(aes(x = 1.1, xend = 1.9, y = 50, yend = 50), color = "grey35", size = 0.5) +
-    geom_segment(aes(x = 1.1, xend = 2.9, y = 75, yend = 75), color = "grey35", size = 0.5) +
+    # geom_segment(aes(x = 1.1, xend = 2.9, y = 75, yend = 75), color = "grey35", size = 0.5) +
     geom_label(aes(x = 1.5, y = 50, label = round(p1$p.value, 2)), size = 3, color = "grey35") +
-    geom_label(aes(x = 2.5, y = 75, label = round(p2$p.value, 2)), size = 3, color = "grey35") +
+    # geom_label(aes(x = 2.5, y = 75, label = round(p2$p.value, 2)), size = 3, color = "grey35") +
     geom_boxplot() +
-    scale_x_discrete(NULL, labels = c("Pharmacy", "Traditional", "Pharmacy FY16")) +
+    scale_x_discrete(NULL, labels = c("Pharmacy", "Traditional")) +
     ylab("Time in Therapeutic Range (%)") +
     theme_bg(xticks = FALSE, base_family = "serif")
 ```
@@ -255,7 +282,7 @@ t.test(ttr_pharm17$perc.time, ttr_pharm16$perc.time, var.equal = TRUE) %>%
 
 # Outcomes and Events
 
-There were more patients with an unplanned return`r margin_note("Unplanned return included any ER visit, observation, or inpatient stay at any MH hospital within 30 days of discharge from MH-TMC.")` to a MH facility within 30 days in the traditional group (see Table 1). There were no differences in readmission or other events.
+There were no differences in bleeding, need for anticoagulation reversal, readmission within 30 dyas, or other adverse events (see Table 1).`r margin_note("Unplanned return included any ER visit, observation, or inpatient stay at any MH hospital within 30 days of discharge from MH-TMC.")` 
 
 `r margin_note("Hemoglobin decrease of >/= 2 g/dL within a 48-hour period")`
 `r margin_note("Reversal medications included phytonadione, 4-factor PCC, factor VIIa, aminocaproic acid, or tranexamic acid")`
@@ -263,7 +290,10 @@ There were more patients with an unplanned return`r margin_note("Unplanned retur
 ```{r}
 hgb <- data_hgb_drop %>%
     distinct(millennium.id, .keep_all = TRUE) %>%
-    full_join(data_warfarin[c("millennium.id", "group", "warfarin_start")], by = "millennium.id") %>%
+    full_join(
+        data_warfarin[c("millennium.id", "group", "warfarin_start")], 
+        by = "millennium.id"
+    ) %>%
     filter(warfarin_start >= start_date,
            warfarin_start <= end_date) 
     
@@ -285,9 +315,14 @@ p_hgb <- chisq.test(tmp_hgb$group, tmp_hgb$hgb)
 ```{r}
 prbc <- data_prbc %>%
     distinct(millennium.id, .keep_all = TRUE) %>%
-    full_join(data_warfarin[c("millennium.id", "group", "warfarin_start")], by = "millennium.id") %>%
-    filter(warfarin_start >= start_date,
-           warfarin_start <= end_date) 
+    full_join(
+        data_warfarin[c("millennium.id", "group", "warfarin_start")], 
+        by = "millennium.id"
+    ) %>%
+    filter(
+        warfarin_start >= start_date,
+        warfarin_start <= end_date
+    ) 
 
 tbl_prbc <- prbc %>%
     mutate(prbc = !is.na(prbc_day)) %>%
@@ -307,9 +342,14 @@ p_prbc <- chisq.test(tmp_prbc$group, tmp_prbc$prbc)
 ```{r}
 ffp <- data_ffp %>%
     distinct(millennium.id, .keep_all = TRUE) %>%
-    full_join(data_warfarin[c("millennium.id", "group", "warfarin_start")], by = "millennium.id") %>%
-    filter(warfarin_start >= start_date,
-           warfarin_start <= end_date) 
+    full_join(
+        data_warfarin[c("millennium.id", "group", "warfarin_start")], 
+        by = "millennium.id"
+    ) %>%
+    filter(
+        warfarin_start >= start_date,
+        warfarin_start <= end_date
+    ) 
 
 tbl_ffp <- ffp %>%
     mutate(ffp = !is.na(ffp_day)) %>%
@@ -329,9 +369,14 @@ p_ffp <- chisq.test(tmp_ffp$group, tmp_ffp$ffp)
 ```{r}
 reversal <- data_reversal %>%
     distinct(millennium.id, .keep_all = TRUE) %>%
-    full_join(data_warfarin[c("millennium.id", "group", "warfarin_start")], by = "millennium.id") %>%
-    filter(warfarin_start >= start_date,
-           warfarin_start <= end_date) 
+    full_join(
+        data_warfarin[c("millennium.id", "group", "warfarin_start")],
+        by = "millennium.id"
+    ) %>%
+    filter(
+        warfarin_start >= start_date,
+        warfarin_start <= end_date
+    ) 
 
 tbl_reversal <- reversal %>%
     mutate(reversal = !is.na(rev_day)) %>%
@@ -351,9 +396,14 @@ p_reversal <- chisq.test(tmp_reversal$group, tmp_reversal$reversal)
 ```{r}
 procedures <- data_procedures %>%
     distinct(millennium.id, .keep_all = TRUE) %>%
-    full_join(data_warfarin[c("millennium.id", "group", "warfarin_start")], by = "millennium.id") %>%
-    filter(warfarin_start >= start_date,
-           warfarin_start <= end_date) 
+    full_join(
+        data_warfarin[c("millennium.id", "group", "warfarin_start")],
+        by = "millennium.id"
+    ) %>%
+    filter(
+        warfarin_start >= start_date,
+        warfarin_start <= end_date
+    ) 
 
 tbl_procedures <- procedures %>%
     mutate(procedures = !is.na(warf_day)) %>%
@@ -373,9 +423,19 @@ p_procedures <- chisq.test(tmp_procedures$group, tmp_procedures$procedures)
 ```{r}
 revisit_all <- data_warfarin %>%
     select(millennium.id, group, warfarin_start) %>%
-    left_join(data_revisits[c("millennium.id", "next_encounter", "revisit_facility", "revisit_visit_type")], by = "millennium.id") %>%
-    filter(warfarin_start >= start_date,
-           warfarin_start <= end_date) 
+    left_join(
+        data_revisits[c(
+            "millennium.id", 
+            "next_encounter", 
+            "revisit_facility", 
+            "revisit_visit_type"
+        )], 
+        by = "millennium.id"
+    ) %>%
+    filter(
+        warfarin_start >= start_date,
+        warfarin_start <= end_date
+    ) 
 
 tbl_revisit <- revisit_all %>%
     mutate(revisit = !is.na(revisit_facility)) %>%
@@ -402,22 +462,47 @@ tbl_readmit <- revisit_all %>%
     mutate(Event = "Unplanned readmission, 30 days") 
 
 tmp_readmit <- revisit_all %>%
-    mutate(readmit = if_else(revisit_visit_type == "Inpatient", "readmit", "no_readmit", "no_readmit")) %>%
+    mutate(
+        readmit = if_else(
+            revisit_visit_type == "Inpatient", 
+            "readmit", 
+            "no_readmit", 
+            "no_readmit"
+        )
+    ) %>%
     mutate_at(c("group", "readmit"), factor)
 
 p_readmit <- chisq.test(tmp_readmit$group, tmp_readmit$readmit)
 ```
 
 ```{r}
-p <- c(p_hgb$p.value, p_prbc$p.value, p_ffp$p.value, p_reversal$p.value, p_procedures$p.value, p_revisit$p.value, p_readmit$p.value)
+p <- c(
+    p_hgb$p.value, 
+    p_prbc$p.value,
+    p_ffp$p.value, 
+    p_reversal$p.value,
+    p_procedures$p.value, 
+    p_revisit$p.value, 
+    p_readmit$p.value
+)
 
 tbl_hgb %>%
-    bind_rows(tbl_prbc, tbl_ffp, tbl_reversal, tbl_procedures, tbl_revisit, tbl_readmit) %>%
+    bind_rows(
+        tbl_prbc, 
+        tbl_ffp, 
+        tbl_reversal, 
+        tbl_procedures, 
+        tbl_revisit, 
+        tbl_readmit
+    ) %>%
     select(Event, Pharmacy = pharmacy, Traditional = traditional) %>%
     mutate(`p-value` = p) %>%
-    knitr::kable(digits = c(0, 1, 1, 2), caption = "Outcomes and Events During Warfarin Therapy")
+    knitr::kable(
+        digits = c(0, 1, 1, 2), 
+        caption = "Outcomes and Events During Warfarin Therapy"
+    )
 ```
 
 # Conclusion
 
-The Pharmacy Dosing Service continued to provide safe and effective management of warfarin for patients in fiscal year 2017. 
+The Pharmacy Dosing Service continued to provide safe and effective management of warfarin for patients in fiscal year 2018. 
