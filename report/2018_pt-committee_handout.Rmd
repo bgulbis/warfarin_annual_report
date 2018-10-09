@@ -28,6 +28,7 @@ library(tidyverse)
 library(lubridate)
 library(broom)
 library(themebg)
+library(kableExtra)
 
 x <- dirr::get_rds("../data/tidy/fy2018")
 
@@ -73,22 +74,32 @@ my_scale_fill <- function(..., values) {
     )
 }
 
+df_ts <- data_timeseries_location %>%
+    bind_rows(data_ts_2017) %>%
+    filter(fy == 2017 | fy == 2018) %>%
+    group_by(week) %>%
+    summarize_at(c("pharmacy", "traditional"), sum, na.rm = TRUE)
+
+df_ts_fy <- df_ts %>%
+    mutate(fy = year(week) + months(6)) %>%
+    mutate_at("fy", as.integer) %>%
+    group_by(fy) %>%
+    summarize_at(c("pharmacy", "traditional"), mean, na.rm = TRUE)
+
+chg_pharm <- round(((df_ts_fy$pharmacy[nrow(df_ts_fy)] / df_ts_fy$pharmacy[1]) - 1) * 100, 0)
+chg_trad <- round((1 - (df_ts_fy$traditional[nrow(df_ts_fy)] / df_ts_fy$traditional[1])) * 100, 0)
 ```
 
 # Summary
 
-Utilization of the Pharmacy-Managed Warfarin Dosing Service continued to increase in FY17. The areas with the highest utilization were Rehab, CVIMU, and Stroke units. Patients managed by pharmacy had a greater time in therapeutic range and were less likely to have an unplanned return to a MH facility within 30 days. 
+Utilization of the Pharmacy-Managed Warfarin Dosing Service continued to increase in FY18. The areas with the highest utilization were Rehab and areas of HVI. Patients managed by pharmacy had a greater time in therapeutic range. 
 
 # Service Utilization
 
-There has been a 20% increase in the number of warfarin patients being managed by the Pharmacy Dosing Service over the past two fiscal years (see Figure 1). Conversely, there has been a 25% decrease in patients with traditional warfarin management (warfarin managed by a physician or advanced practice provider) during this time. 
+There has been a `r chg_pharm`% increase in the number of warfarin patients being managed by the Pharmacy Dosing Service over the past two fiscal years (see Figure 1). Conversely, there has been a `r chg_trad`% decrease in patients with traditional warfarin management (warfarin managed by a physician or advanced practice provider) during this time. 
 
 ```{r, fig.cap="Number of Warfarin patients managed by Pharmacy Dosing Service compared with traditional management on a weekly basis from July 2016 through June 2018."}
-data_timeseries_location %>%
-    bind_rows(data_ts_2017) %>%
-    filter(fy == 2017 | fy == 2018) %>%
-    group_by(week) %>%
-    summarize_at(c("pharmacy", "traditional"), sum, na.rm = TRUE) %>%
+df_ts %>%
     gather(group, num, pharmacy, traditional) %>%
     ggplot(aes(x = week, y = num)) +
     geom_line(aes(linetype = group)) +
@@ -101,9 +112,9 @@ data_timeseries_location %>%
     theme(legend.position = "bottom")
 ```
 
-The highest volume of warfarin use occured in the Heart Failure IMU, followed by CIMU and CVIMU (see Figure 2). Among the units with the highest warfarin volume, the Pharmacy Dosing Service was responsible for managing warfarin in 50% or more of the patients in the CVIMU, Rehab, 3-Cullen, and Stroke units. Utilization of the Pharmacy Dosing Service remains low in both HFIMU and CIMU, although Clinical Pharmacists and Clinical Pharmacist-Specialists participated in the management of warfarin in both of these areas.
+The highest volume of warfarin use occured in the Heart Failure IMU, followed by CIMU and CVIMU (see Figure 2). Utilization of the Pharmacy Dosing Service remains low in HFIMU, although Clinical Pharmacists and Clinical Pharmacist-Specialists participate in the management of warfarin in both of these areas.
 
-```{r, fig.align='center', fig.height=4, out.height='3in', fig.cap="Top 10 hospital units administering warfarin in FY18."}
+```{r, fig.align='center', fig.height=4, out.height='3in', fig.cap="Top 10 hospital units by number of warfarin doses administered in FY18."}
 # For comparison, FY16 data is provided: the X indicates warfarin managed by Pharmacy Dosing Service in each unit in FY16, the | indicates the total warfarin in each unit in FY16.
 
 
@@ -209,16 +220,17 @@ p <- daily %>%
 ggplot(daily, aes(x = warfarin_day, y = med.dose, fill = group)) +
     geom_boxplot() +
     xlab("Day of therapy") +
-    scale_y_continuous("Warfarin dose (mg)",  breaks = seq(0, 30, 2.5)) +
+    scale_y_continuous("Warfarin dose (mg)",  breaks = seq(0, 30, 5)) +
     # scale_fill_brewer(NULL, palette = "Greys", labels = c("Traditional", "Pharmacy")) +
     my_scale_fill() +
+    coord_cartesian(ylim = c(0, 20)) +
     theme_bg(base_family = "serif") +
     theme(legend.position = "bottom")
 ```
 
-Patients managed by the Pharmacy Dosing Service had a greater rise in INR over the first 7 days of therapy, and were more likely to reach an INR around 2 by day 5. 
+Patients managed by the Pharmacy Dosing Service had a greater rise in INR over the first 7 days of therapy, and were more likely to reach an INR around 2 by day 5 (see Figure 5). 
 
-```{r, fig.cap="INR response during the first 7 days of warfarin therapy. The p-value was < 0.001 for all days except day 3 (p = 0.002) and day 4 (p = 0.869). Patients with an INR target below 2 were excluded from this figure. The usual therapeutic INR range of 2 to 3 is shaded for reference."}
+```{r, fig.cap="INR response during the first 7 days of warfarin therapy. The p-value was significant on all days except day 4 (p = 0.869). Patients with an INR target below 2 were excluded from this figure. The usual therapeutic INR range of 2 to 3 is shaded for reference."}
 inr <- data_daily %>%
     left_join(data_warfarin[c("millennium.id", "goal.low")], by = "millennium.id") %>%
     ungroup() %>%
@@ -251,9 +263,9 @@ ggplot(inr, aes(x = warfarin_day, y = inr, linetype = group)) +
     theme(legend.position = "bottom")
 ```
 
-There was a greater time-in-therapeutic range for patients managed by the Pharmacy Dosing Service in FY17 compared with traditional management. In a historical comparison, there was no difference in the time-in-therapeutic range for patients managed by the Pharmacy Dosing Service in FY17 vs. FY16.
+There was a greater time-in-therapeutic range for patients managed by the Pharmacy Dosing Service in FY18 compared with traditional management (see Figure 6). 
 
-```{r, fig.cap="Percent time in therapeutic range among patients managed by the Pharmacy Dosing Service in FY17 vs. Traditional management, as well as patients managed by the Pharmacy Dosing Service in FY17 vs. FY16. The p-value for each comparison is included on the figure.", cache=TRUE}
+```{r, fig.cap="Percent time in therapeutic range among patients managed by the Pharmacy Dosing Service in FY18 vs. Traditional management. The p-value was 0.01 for this comparison.", cache=TRUE}
 p1 <- t.test(ttr_pharm_curr$perc.time, ttr_trad_curr$perc.time, var.equal = TRUE)
 # p2 <- t.test(ttr_pharm17$perc.time, ttr_pharm16$perc.time, var.equal = TRUE)
 
@@ -282,10 +294,51 @@ t.test(ttr_pharm17$perc.time, ttr_pharm16$perc.time, var.equal = TRUE) %>%
 
 # Outcomes and Events
 
-There were no differences in bleeding, need for anticoagulation reversal, readmission within 30 dyas, or other adverse events (see Table 1).`r margin_note("Unplanned return included any ER visit, observation, or inpatient stay at any MH hospital within 30 days of discharge from MH-TMC.")` 
+There were no differences in bleeding, need for anticoagulation reversal, readmission within 30 dyas, or other adverse events (see Table 1).
 
-`r margin_note("Hemoglobin decrease of >/= 2 g/dL within a 48-hour period")`
-`r margin_note("Reversal medications included phytonadione, 4-factor PCC, factor VIIa, aminocaproic acid, or tranexamic acid")`
+```{r vizient}
+# Warfarin-elevated INR measure Percentage of cases that received warfarin (individual resource code 671285) and have an INR of ≥ 5 any point after
+#   * Inclusion:  inpatient, age>=18, received warfarin (individual resource code 671285, cannot be missing date/time stamp on lab results)
+#   * Exclusion:  BadData, EarlyDeath, Hospice, NonViableNeoNate, Rehabilitation Encounters, patient who also received argatroban (702615), patient with an INR > 3.5 on the day of or day after admission, patient who had 2 or fewer days of warfarin therapy while inpatient, patient on warfarin on day of and day after admission date
+#   * Evaluate all INRs at any point after first warfarin administration not meeting above exclusions, select DISTINCT discharges with INR >= 5
+
+vizient <- data_daily %>%
+    ungroup() %>%
+    add_count(millennium.id) %>%
+    mutate(exclude = warfarin_day <= 2 & inr > 3.5) %>%
+    filter(
+        n > 2,
+        !exclude
+    ) %>%
+    mutate(high.inr = inr >= 5) %>%
+    group_by(millennium.id) %>%
+    summarize_at("high.inr", sum, na.rm = TRUE) %>%
+    mutate_at("high.inr", funs(. > 0)) %>%
+    full_join(
+        data_warfarin[c("millennium.id", "group", "warfarin_start")], 
+        by = "millennium.id"
+    ) %>%
+    filter(warfarin_start >= start_date,
+           warfarin_start <= end_date) 
+    
+tbl_vizient <- vizient %>%
+    ungroup() %>%
+    add_count(group) %>%
+    group_by(group, n) %>%
+    summarize_at("high.inr", sum, na.rm = TRUE) %>%
+    mutate_at("high.inr", funs(. / n * 100)) %>%
+    ungroup() %>%
+    select(-n) %>%
+    spread(group, high.inr) %>%
+    mutate(Event = "Vizient Metric, INR >/= 5") 
+
+tmp_vizient <- vizient %>%
+    mutate(viz = if_else(high.inr, "high", "not")) %>%
+    mutate_at(c("group", "viz"), factor)
+
+p_vizient <- chisq.test(tmp_vizient$group, tmp_vizient$viz)
+```
+
 
 ```{r}
 hgb <- data_hgb_drop %>%
@@ -478,6 +531,7 @@ p_readmit <- chisq.test(tmp_readmit$group, tmp_readmit$readmit)
 ```{r}
 p <- c(
     p_hgb$p.value, 
+    p_vizient$p.value,
     p_prbc$p.value,
     p_ffp$p.value, 
     p_reversal$p.value,
@@ -488,6 +542,7 @@ p <- c(
 
 tbl_hgb %>%
     bind_rows(
+        tbl_vizient,
         tbl_prbc, 
         tbl_ffp, 
         tbl_reversal, 
@@ -495,12 +550,16 @@ tbl_hgb %>%
         tbl_revisit, 
         tbl_readmit
     ) %>%
-    select(Event, Pharmacy = pharmacy, Traditional = traditional) %>%
-    mutate(`p-value` = p) %>%
+    select(Event, pharmacy, traditional) %>%
+    mutate(p = p) %>%
     knitr::kable(
+        format = "latex",
         digits = c(0, 1, 1, 2), 
-        caption = "Outcomes and Events During Warfarin Therapy"
-    )
+        booktabs = TRUE,
+        col.names = c("Event", "%", "%", "p-value"), 
+        caption = "Outcomes and Events During Warfarin Therapy. Hemoglobin decrease of >/= 2 g/dL within a 48-hour period. Vizient metric assesses the percent of patients on warfarin for more than two days who experience an INR >/= 5 at any point during the hospitalization after warfarin initation. Reversal medications included phytonadione, 4-factor PCC, factor VIIa, aminocaproic acid, or tranexamic acid. Unplanned return included any ER visit, observation, or inpatient stay at any MH hospital within 30 days of discharge from MH-TMC."
+    ) %>%
+    add_header_above(c("", "Pharmacy", "Traditional", ""), align = "r", line = FALSE)
 ```
 
 # Conclusion
