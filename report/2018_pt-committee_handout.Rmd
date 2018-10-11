@@ -92,13 +92,13 @@ chg_trad <- round((1 - (df_ts_fy$traditional[nrow(df_ts_fy)] / df_ts_fy$traditio
 
 # Summary
 
-Utilization of the Pharmacy-Managed Warfarin Dosing Service continued to increase in FY18. The areas with the highest utilization were Rehab and areas of HVI. Patients managed by pharmacy had a greater time in therapeutic range. 
+Utilization of the Pharmacy-Managed Warfarin Dosing Service continued to increase in FY18. The areas with the highest utilization were Rehab and some areas of HVI. Patients managed by the pharmacy service had a small but statistically significantly greater time in therapeutic range than patients with traditional warfarin management.
 
 # Service Utilization
 
-There has been a `r chg_pharm`% increase in the number of warfarin patients being managed by the Pharmacy Dosing Service over the past two fiscal years (see Figure 1). Conversely, there has been a `r chg_trad`% decrease in patients with traditional warfarin management (warfarin managed by a physician or advanced practice provider) during this time. 
+There has been a `r chg_pharm`% increase in the number of warfarin patients being managed by the Pharmacy Dosing Service over the past two fiscal years (see Figure 1). Conversely, there has been a `r chg_trad`% decrease in the number of patients with traditional warfarin management (warfarin managed by a physician or advanced practice provider) during this time. 
 
-```{r, fig.cap="Number of Warfarin patients managed by Pharmacy Dosing Service compared with traditional management on a weekly basis from July 2016 through June 2018."}
+```{r, fig.cap="Number of Warfarin patients managed by Pharmacy Dosing Service compared with traditional management on a weekly basis over the past two fiscal years."}
 df_ts %>%
     gather(group, num, pharmacy, traditional) %>%
     ggplot(aes(x = week, y = num)) +
@@ -112,7 +112,7 @@ df_ts %>%
     theme(legend.position = "bottom")
 ```
 
-The highest volume of warfarin use occured in the Heart Failure IMU, followed by CIMU and CVIMU (see Figure 2). Utilization of the Pharmacy Dosing Service remains low in HFIMU, although Clinical Pharmacists and Clinical Pharmacist-Specialists participate in the management of warfarin in both of these areas.
+The highest volume of warfarin use occured in the Heart Failure IMU, followed by CIMU and CVIMU (see Figure 2). Utilization of the Pharmacy Dosing Service remains low in HFIMU, although Clinical Pharmacists and Clinical Pharmacist-Specialists participate in the management of warfarin in this area.
 
 ```{r, fig.align='center', fig.height=4, out.height='3in', fig.cap="Top 10 hospital units by number of warfarin doses administered in FY18."}
 # For comparison, FY16 data is provided: the X indicates warfarin managed by Pharmacy Dosing Service in each unit in FY16, the | indicates the total warfarin in each unit in FY16.
@@ -209,9 +209,9 @@ trad <- daily %>%
     nrow()
 ```
 
-There were `r format(pharm, big.mark = ",")` patients in the Pharmacy Dosing Service group, and `r format(trad, big.mark = ",")` patients in the traditional management group. In comparing the warfarin doses administered on each of the first 7 days of therapy, there was a higher initial dose ordered by the Pharmacy Dosing Service (see Figure 4).
+There were `r format(pharm, big.mark = ",")` patients in the Pharmacy Dosing Service group, and `r format(trad, big.mark = ",")` patients in the traditional management group. In comparing the warfarin doses administered on each of the first 7 days of therapy, there was a higher median daily dose ordered for patients managed by the Pharmacy Dosing Service (see Figure 4).
 
-```{r, fig.cap="Distribution of warfarin dose by day of therapy. The p-value is < 0.01 for each day of warfarin."}
+```{r, fig.cap="Distribution of warfarin dose by day of therapy. The thick horizontal black line represents the median dose for each group each day. The p-value is < 0.01 for each day of warfarin."}
 p <- daily %>%
     group_by(warfarin_day) %>%
     do(tidy(wilcox.test(med.dose ~ group, data = .))) %>%
@@ -221,8 +221,11 @@ ggplot(daily, aes(x = warfarin_day, y = med.dose, fill = group)) +
     geom_boxplot() +
     xlab("Day of therapy") +
     scale_y_continuous("Warfarin dose (mg)",  breaks = seq(0, 30, 5)) +
-    # scale_fill_brewer(NULL, palette = "Greys", labels = c("Traditional", "Pharmacy")) +
-    my_scale_fill() +
+    scale_fill_manual(
+        "", 
+        values = c("#cccccc", "#969696"), 
+        labels = c("Traditional", "Pharmacy")
+    ) +
     coord_cartesian(ylim = c(0, 20)) +
     theme_bg(base_family = "serif") +
     theme(legend.position = "bottom")
@@ -253,7 +256,7 @@ p <- inr %>%
     mutate_at("p.value", round, digits = 3)
 
 ggplot(inr, aes(x = warfarin_day, y = inr, linetype = group)) +
-    geom_rect(aes(xmin = -Inf, xmax = Inf, ymin = 2, ymax = 3), fill = "gray95") +
+    geom_rect(aes(xmin = -Inf, xmax = Inf, ymin = 2, ymax = 3), fill = "grey75") +
     geom_smooth(color = "black") +
     scale_x_continuous("Day of therapy", breaks = seq(1, 7, 1)) +
     ylab("INR") +
@@ -267,17 +270,13 @@ There was a greater time-in-therapeutic range for patients managed by the Pharma
 
 ```{r, fig.cap="Percent time in therapeutic range among patients managed by the Pharmacy Dosing Service in FY18 vs. Traditional management. The p-value was 0.01 for this comparison.", cache=TRUE}
 p1 <- t.test(ttr_pharm_curr$perc.time, ttr_trad_curr$perc.time, var.equal = TRUE)
-# p2 <- t.test(ttr_pharm17$perc.time, ttr_pharm16$perc.time, var.equal = TRUE)
 
 ttr_pharm_curr %>%
     bind_rows(ttr_trad_curr) %>%
-    # bind_rows(ttr_trad17, ttr_pharm16) %>%
     mutate_at("group", factor, levels = c("pharmacy", "traditional")) %>%
     ggplot(aes(x = group, y = perc.time)) +
     geom_segment(aes(x = 1.1, xend = 1.9, y = 50, yend = 50), color = "grey35", size = 0.5) +
-    # geom_segment(aes(x = 1.1, xend = 2.9, y = 75, yend = 75), color = "grey35", size = 0.5) +
     geom_label(aes(x = 1.5, y = 50, label = round(p1$p.value, 2)), size = 3, color = "grey35") +
-    # geom_label(aes(x = 2.5, y = 75, label = round(p2$p.value, 2)), size = 3, color = "grey35") +
     geom_boxplot() +
     scale_x_discrete(NULL, labels = c("Pharmacy", "Traditional")) +
     ylab("Time in Therapeutic Range (%)") +
@@ -294,7 +293,7 @@ t.test(ttr_pharm17$perc.time, ttr_pharm16$perc.time, var.equal = TRUE) %>%
 
 # Outcomes and Events
 
-There were no differences in bleeding, need for anticoagulation reversal, readmission within 30 dyas, or other adverse events (see Table 1).
+There were no differences in bleeding, need for anticoagulation reversal, readmission within 30 dyas, or other adverse events between groups (see Table 1).
 
 ```{r vizient}
 # Warfarin-elevated INR measure Percentage of cases that received warfarin (individual resource code 671285) and have an INR of ≥ 5 any point after
@@ -557,7 +556,14 @@ tbl_hgb %>%
         digits = c(0, 1, 1, 2), 
         booktabs = TRUE,
         col.names = c("Event", "%", "%", "p-value"), 
-        caption = "Outcomes and Events During Warfarin Therapy. Hemoglobin decrease of >/= 2 g/dL within a 48-hour period. Vizient metric assesses the percent of patients on warfarin for more than two days who experience an INR >/= 5 at any point during the hospitalization after warfarin initation. Reversal medications included phytonadione, 4-factor PCC, factor VIIa, aminocaproic acid, or tranexamic acid. Unplanned return included any ER visit, observation, or inpatient stay at any MH hospital within 30 days of discharge from MH-TMC."
+        caption = paste(
+            "Outcomes and Events During Warfarin Therapy.",
+            "Hemoglobin decrease includes a drop of >/= 2 g/dL within a 48-hour period.",
+            "A new Vizient metric evaluates the percent of patients on warfarin for more than two days who experience an INR >/= 5 at any point during the hospitalization after warfarin initation.", 
+            "Reversal medications include phytonadione, 4-factor PCC, factor VIIa, aminocaproic acid, and tranexamic acid", 
+            "Unplanned return includes any ER visit, observation, or inpatient stay at any MH hospital within 30 days of discharge from MH-TMC",
+            sep = " "
+        )
     ) %>%
     add_header_above(c("", "Pharmacy", "Traditional", ""), align = "r", line = FALSE)
 ```
