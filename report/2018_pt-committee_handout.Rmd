@@ -69,7 +69,8 @@ ttr_trad_curr <- data_warfarin %>%
 my_scale_fill <- function(..., values) {
     scale_fill_manual(
         "", 
-        values = c("#969696", "#636363"), 
+        values = c("white", "grey50"), 
+        # values = c("#969696", "#636363"), 
         labels = c("Traditional", "Pharmacy")
     )
 }
@@ -108,7 +109,7 @@ df_ts %>%
     scale_x_datetime(NULL, date_labels = "%b %Y") +
     scale_y_continuous("Weekly Patients", breaks = seq(0, 300, 50)) +
     scale_linetype_discrete(NULL, labels = c("Pharmacy", "Traditional")) +
-    theme_bg(base_family = "serif") +
+    theme_bg_print(base_family = "serif") +
     theme(legend.position = "bottom")
 ```
 
@@ -116,7 +117,6 @@ The highest volume of warfarin use occured in the Heart Failure IMU, followed by
 
 ```{r, fig.align='center', fig.height=4, out.height='3in', fig.cap="Top 10 hospital units by number of warfarin doses administered in FY18."}
 # For comparison, FY16 data is provided: the X indicates warfarin managed by Pharmacy Dosing Service in each unit in FY16, the | indicates the total warfarin in each unit in FY16.
-
 
 data_timeseries_location %>%
     filter(fy == 2018) %>%
@@ -130,7 +130,7 @@ data_timeseries_location %>%
     mutate_at("order.location", as_factor) %>%
     mutate_at("order.location", fct_rev) %>%
     ggplot(aes(x = order.location, y = num, fill = group)) +
-    geom_bar(stat = "identity") +
+    geom_bar(stat = "identity", color = "black") +
     # geom_errorbar(aes(x = order.location, ymin = total, ymax = total), data = units16, width = 0.5, color = "grey35") +
     # geom_point(aes(x = order.location, y = pharmacy), data = units16, shape = 4, color = "grey35") +
     xlab("Hospital Unit") +
@@ -138,7 +138,7 @@ data_timeseries_location %>%
     # scale_fill_brewer(NULL, palette = "Greys", labels = c("Traditional", "Pharmacy")) +
     my_scale_fill() +
     coord_flip() +
-    theme_bg(base_family = "serif", yticks = FALSE) +
+    theme_bg_print(base_family = "serif", yticks = FALSE) +
     theme(legend.position = "bottom")
 ```
 
@@ -159,7 +159,7 @@ data_warfarin %>%
     mutate_at("indication", fct_rev) %>%
     filter(val > 0) %>%
     ggplot(aes(x = indication, y = val, fill = group)) +
-    geom_bar(stat = "identity", position = "dodge") +
+    geom_bar(stat = "identity", position = "dodge", color = "black") +
     scale_x_discrete(
         "Indication", 
         labels = c(
@@ -176,7 +176,7 @@ data_warfarin %>%
     ylab("Patients (%)") +
     my_scale_fill() +
     coord_flip() +
-    theme_bg(base_family = "serif", yticks = FALSE) +
+    theme_bg_print(base_family = "serif", yticks = FALSE) +
     theme(legend.position = "bottom")
 ```
 
@@ -221,13 +221,14 @@ ggplot(daily, aes(x = warfarin_day, y = med.dose, fill = group)) +
     geom_boxplot() +
     xlab("Day of therapy") +
     scale_y_continuous("Warfarin dose (mg)",  breaks = seq(0, 30, 5)) +
-    scale_fill_manual(
-        "", 
-        values = c("#cccccc", "#969696"), 
-        labels = c("Traditional", "Pharmacy")
-    ) +
+    my_scale_fill() +
+    # scale_fill_manual(
+    #     "", 
+    #     values = c("#cccccc", "#969696"), 
+    #     labels = c("Traditional", "Pharmacy")
+    # ) +
     coord_cartesian(ylim = c(0, 20)) +
-    theme_bg(base_family = "serif") +
+    theme_bg_print(base_family = "serif") +
     theme(legend.position = "bottom")
 ```
 
@@ -262,7 +263,7 @@ ggplot(inr, aes(x = warfarin_day, y = inr, linetype = group)) +
     ylab("INR") +
     scale_linetype_discrete(NULL, labels = c("Pharmacy", "Traditional")) +
     coord_cartesian(ylim = c(1, 3.5)) +
-    theme_bg(base_family = "serif") +
+    theme_bg_print(base_family = "serif") +
     theme(legend.position = "bottom")
 ```
 
@@ -275,12 +276,12 @@ ttr_pharm_curr %>%
     bind_rows(ttr_trad_curr) %>%
     mutate_at("group", factor, levels = c("pharmacy", "traditional")) %>%
     ggplot(aes(x = group, y = perc.time)) +
-    geom_segment(aes(x = 1.1, xend = 1.9, y = 50, yend = 50), color = "grey35", size = 0.5) +
-    geom_label(aes(x = 1.5, y = 50, label = round(p1$p.value, 2)), size = 3, color = "grey35") +
+    geom_segment(aes(x = 1.1, xend = 1.9, y = 50, yend = 50), color = "black", size = 0.5) +
+    geom_label(aes(x = 1.5, y = 50, label = round(p1$p.value, 2)), size = 3, color = "black") +
     geom_boxplot() +
     scale_x_discrete(NULL, labels = c("Pharmacy", "Traditional")) +
     ylab("Time in Therapeutic Range (%)") +
-    theme_bg(xticks = FALSE, base_family = "serif")
+    theme_bg_print(xticks = FALSE, base_family = "serif")
 ```
 
 
