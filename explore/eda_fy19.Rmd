@@ -1,0 +1,171 @@
+---
+title: "Warfarin Dosing Service Analysis FY2019"
+subtitle: "Exploratory Data Analysis"
+author: "Brian Gulbis, PharmD, BCPS"
+date: "9/16/2019"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: 
+  html_document:
+    code_folding: hide
+    fig_caption: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(lubridate)
+library(mbohelpr)
+library(themebg)
+
+data_dir <- "../data/tidy/fy2019"
+
+data_consult_orders <- get_data(data_dir, "consult_orders") %>%
+    filter(str_detect(nurse_unit, "^HH|^HVI")) %>%
+    mutate(
+        order_month = floor_date(order_datetime, unit = "month"),
+        fiscal_year = year(order_month %m+% months(6))
+    )
+    
+data_consult_tasks <- get_data(data_dir, "consult_tasks") %>%
+    filter(
+        str_detect(nurse_unit, "^HH|^HVI"),
+        task_date < ymd("2019-07-01")
+    ) %>%
+    mutate(
+        task_month = floor_date(task_date, unit = "month"),
+        fiscal_year = year(task_month %m+% months(6))
+    )
+
+data_demographics <- get_data(data_dir, "demographics")
+
+data_doac_doses <- get_data(data_dir, "doac_doses") %>%
+    filter(str_detect(nurse_unit, "^HH|^HVI")) %>%
+    mutate(
+        med_month = floor_date(med_datetime, unit = "month"),
+        fiscal_year = year(med_month %m+% months(6))
+    )
+    
+data_labs <- get_data(data_dir, "labs")
+data_measures <- get_data(data_dir, "measures")
+data_reencounters <- get_data(data_dir, "reencounters")
+data_reversal_meds <- get_data(data_dir, "reversal_meds")
+data_warfarin_details <- get_data(data_dir, "warfarin_details")
+
+data_warfarin_doses <- get_data(data_dir, "warfarin_doses") %>%
+    filter(str_detect(nurse_unit, "^HH|^HVI")) %>%
+    mutate(
+        med_month = floor_date(med_datetime, unit = "month"),
+        fiscal_year = year(med_month %m+% months(6))
+    )
+
+data_warfarin_home_meds <- get_data(data_dir, "warfarin_home_meds")
+data_warfarin_orders <- get_data(data_dir, "warfarin_orders")
+
+```
+
+```{r}
+count(data_warfarin_doses, fiscal_year) 
+```
+
+```{r}
+count(data_doac_doses, fiscal_year)
+```
+
+```{r}
+data_doac_doses %>%
+    count(fiscal_year, medication) %>%
+    spread(fiscal_year, n)
+```
+
+
+```{r}
+data_warfarin_doses %>%
+    count(fiscal_year, nurse_unit) %>%
+    spread(fiscal_year, n)
+```
+
+```{r}
+data_doac_doses %>%
+    count(fiscal_year, nurse_unit, medication) %>%
+    spread(fiscal_year, n)
+```
+
+
+```{r}
+count(data_consult_orders, fiscal_year)
+```
+
+```{r}
+data_warfarin_doses %>%
+    arrange(encounter_id, med_datetime) %>%
+    distinct(encounter_id, .keep_all = TRUE) %>%
+    count(fiscal_year)
+```
+
+```{r}
+data_consult_orders %>%
+    arrange(encounter_id, order_datetime) %>%
+    distinct(encounter_id, .keep_all = TRUE) %>%
+    count(fiscal_year)
+```
+
+```{r}
+count(data_consult_tasks, fiscal_year)
+```
+
+```{r}
+df_warf_month <- data_warfarin_doses %>%
+    arrange(encounter_id, med_datetime) %>%
+    distinct(encounter_id, .keep_all = TRUE) %>%
+    count(med_month, name = "warfarin") %>%
+    mutate_at("med_month", as_date)
+
+df_consult_month <- data_consult_tasks %>%
+    arrange(encounter_id, task_date) %>%
+    distinct(encounter_id, .keep_all = TRUE) %>%
+    count(task_month, name = "consults")
+
+df_doac_month <- data_doac_doses %>%
+    arrange(encounter_id, med_datetime) %>%
+    distinct(encounter_id, .keep_all = TRUE) %>%
+    count(med_month, name = "doac") %>%
+    mutate_at("med_month", as_date)
+
+df_warf_month %>%
+    inner_join(df_consult_month, by = c("med_month" = "task_month")) %>%
+    inner_join(df_doac_month, by = "med_month") %>%
+    gather(key, value, -med_month) %>%
+    ggplot(aes(x = med_month, y = value, color = key)) +
+    geom_line() +
+    theme_bg()
+
+```
+
+```{r}
+df_warf_month <- data_warfarin_doses %>%
+    count(med_month, name = "warfarin") %>%
+    mutate_at("med_month", as_date)
+
+df_consult_month <- data_consult_tasks %>%
+     count(task_month, name = "consults")
+
+df_doac_month <- data_doac_doses %>%
+    mutate(med_day = floor_date(med_datetime, unit="day")) %>%
+    distinct(encounter_id, medication, med_month, med_day) %>%
+    count(med_month, name = "doac") %>%
+    mutate_at("med_month", as_date)
+
+df_warf_month %>%
+    inner_join(df_consult_month, by = c("med_month" = "task_month")) %>%
+    inner_join(df_doac_month, by = "med_month") %>%
+    gather(key, value, -med_month) %>%
+    ggplot(aes(x = med_month, y = value, color = key)) +
+    geom_line() +
+    theme_bg()
+
+```
+
+
