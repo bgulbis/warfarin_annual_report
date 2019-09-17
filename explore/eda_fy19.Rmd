@@ -164,8 +164,176 @@ df_warf_month %>%
     gather(key, value, -med_month) %>%
     ggplot(aes(x = med_month, y = value, color = key)) +
     geom_line() +
+    scale_color_brewer(palette = "Dark2") +
     theme_bg()
 
 ```
 
+```{r}
+df_consult_pts <- data_consult_orders %>%
+    arrange(encounter_id, order_datetime) %>%
+    distinct(encounter_id, .keep_all = TRUE) %>%
+    mutate(
+        consult = TRUE,
+        consult_date = floor_date(order_datetime, unit = "day")
+    ) %>%
+    select(
+        encounter_id, 
+        consult_date,
+        nurse_unit_consult = nurse_unit,
+        med_service, 
+        consult
+    )
 
+df_warf_start <- data_warfarin_doses %>%
+    arrange(encounter_id, med_datetime) %>%
+    distinct(encounter_id, .keep_all = TRUE) %>%
+    mutate(warfarin_start = floor_date(med_datetime, unit = "day")) %>%
+    select(
+        encounter_id,
+        med_month,
+        warfarin_start, 
+        nurse_unit_warfarin = nurse_unit, 
+        fiscal_year
+    )
+
+df_demog <- data_demographics %>%
+    inner_join(df_warf_start, by = "encounter_id") %>%
+    left_join(df_consult_pts, by = "encounter_id") %>%
+    mutate_at("consult", list(~coalesce(., FALSE))) %>%
+    mutate(
+        consult_day = difftime(
+            consult_date, 
+            warfarin_start, 
+            units = "days"
+        )
+    )
+```
+
+```{r}
+df_demog %>%
+    add_count(fiscal_year, name = "n_fy") %>%
+    count(fiscal_year, n_fy, consult) %>%
+    mutate(pct_consult = n / n_fy)
+```
+
+```{r}
+df_warf_ord <- data_warfarin_orders %>%
+    rename(
+        nurse_unit_order = nurse_unit,
+        med_service_order = med_service
+    ) %>%
+    arrange(encounter_id, order_datetime) %>%
+    mutate(order_date = floor_date(order_datetime, unit = "day")) %>%
+    inner_join(df_warf_start, by = c("encounter_id", "order_date" = "warfarin_start")) %>%
+    left_join(df_consult_pts, by = "encounter_id") %>%
+    mutate_at("consult", list(~coalesce(., FALSE)))
+```
+
+```{r}
+df_warf_ord %>%
+    mutate_at("med_service_order", fct_infreq) %>%
+    mutate_at("med_service_order", fct_lump, n = 10) %>%
+    mutate_at("med_service_order", fct_rev) %>%
+    ggplot(aes(x = med_service_order, fill = consult)) +
+    geom_bar() +
+    facet_wrap(~fiscal_year) +
+    coord_flip() +
+    theme_bg()
+```
+
+```{r}
+df_warf_ord %>%
+    mutate_at("med_service_order", fct_infreq) %>%
+    mutate_at("med_service_order", fct_lump, n = 10) %>%
+    mutate_at("med_service_order", fct_rev) %>%
+    mutate_at("fiscal_year", as_factor) %>%
+    ggplot(aes(x = med_service_order, fill = fiscal_year)) +
+    geom_bar(position = "dodge") +
+    scale_fill_brewer(palette = "Dark2") +
+    coord_flip() +
+    theme_bg()
+```
+
+```{r}
+df_warf_ord %>%
+    mutate_at("med_service_order", fct_infreq) %>%
+    mutate_at("med_service_order", fct_lump, n = 20) %>%
+    add_count(fiscal_year, name = "n_fy") %>%
+    add_count(fiscal_year, med_service_order, name = "n_service") %>%
+    count(fiscal_year, med_service_order, consult, n_service) %>%
+    mutate(pct_service = n / n_service) %>%
+    ggplot(aes(x = med_service_order, y = pct_service, fill = consult)) +
+    geom_col() +
+    facet_wrap(~fiscal_year) +
+    coord_flip() +
+    theme_bg()
+```
+
+```{r}
+df_warf_ord %>%
+    mutate_at("nurse_unit_order", fct_infreq) %>%
+    mutate_at("nurse_unit_order", fct_lump, n = 15) %>%
+    mutate_at("nurse_unit_order", fct_rev) %>%
+    mutate_at("fiscal_year", as_factor) %>%
+    ggplot(aes(x = nurse_unit_order, fill = fiscal_year)) +
+    geom_bar(position = "dodge") +
+    scale_fill_brewer(palette = "Dark2") +
+    coord_flip() +
+    theme_bg()
+```
+
+```{r}
+df_demog %>%
+    ggplot(aes(x = consult, y = age)) +
+    geom_boxplot() +
+    facet_wrap(~fiscal_year) +
+    theme_bg()
+```
+
+```{r}
+df_demog %>%
+    mutate_at("consult_day", as.numeric) %>%
+    filter(consult) %>%
+    ggplot(aes(x = consult, y = consult_day)) +
+    geom_boxplot() +
+    facet_wrap(~fiscal_year) +
+    coord_cartesian(ylim = c(-5, 5)) +
+    theme_bg()
+```
+
+```{r}
+df_demog %>%
+    mutate_at("race", fct_infreq) %>%
+    mutate_at("race", fct_rev) %>%
+    mutate_at("fiscal_year", as_factor) %>%
+    ggplot(aes(x = race, fill = fiscal_year)) +
+    geom_bar(position = "dodge") +
+    scale_fill_brewer(palette = "Dark2") +
+    coord_flip() +
+    theme_bg()
+```
+
+```{r}
+df_demog %>%
+    mutate_at("sex", fct_infreq) %>%
+    mutate_at("sex", fct_rev) %>%
+    mutate_at("fiscal_year", as_factor) %>%
+    ggplot(aes(x = sex, fill = fiscal_year)) +
+    geom_bar(position = "dodge") +
+    scale_fill_brewer(palette = "Dark2") +
+    coord_flip() +
+    theme_bg()
+```
+
+```{r}
+df_demog %>%
+    mutate_at("disch_disposition", fct_infreq) %>%
+    mutate_at("disch_disposition", fct_rev) %>%
+    mutate_at("fiscal_year", as_factor) %>%
+    ggplot(aes(x = disch_disposition, fill = fiscal_year)) +
+    geom_bar(position = "dodge") +
+    scale_fill_brewer(palette = "Dark2") +
+    coord_flip() +
+    theme_bg()
+```
