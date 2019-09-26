@@ -15,12 +15,18 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r}
+library(data.table)
 library(tidyverse)
 library(lubridate)
 library(mbohelpr)
 library(themebg)
 
 data_dir <- "../data/tidy/fy2019"
+
+find_ind <- function(x, reg) {
+    stringr::str_detect(x, regex(reg, ignore_case = TRUE))
+}
+
 
 data_consult_orders <- get_data(data_dir, "consult_orders") %>%
     filter(str_detect(nurse_unit, "^HH|^HVI")) %>%
@@ -57,12 +63,119 @@ data_warfarin_details <- get_data(data_dir, "warfarin_details")
 data_warfarin_doses <- get_data(data_dir, "warfarin_doses") %>%
     filter(str_detect(nurse_unit, "^HH|^HVI")) %>%
     mutate(
+        med_day = floor_date(med_datetime, unit = "day"),
         med_month = floor_date(med_datetime, unit = "month"),
         fiscal_year = year(med_month %m+% months(6))
     )
 
 data_warfarin_home_meds <- get_data(data_dir, "warfarin_home_meds")
 data_warfarin_orders <- get_data(data_dir, "warfarin_orders")
+
+df_indications <- data_warfarin_details %>%
+    filter(detail == "Warfarin Indication") %>%
+    mutate(
+        indication = case_when(
+            find_ind(
+                result_value, 
+                "Atrial fibrillation|a(.*)?fib|a(.*)?flutter"
+            ) ~ "afib",
+            find_ind(
+                result_value, 
+                "Deep vein thrombosis|DVT(?!( prophylaxis))|VTE"
+            ) ~ "dvt",
+            find_ind(
+                result_value, 
+                "Pulmonary embolism|PE"
+            ) ~ "pe",
+            find_ind(
+                result_value, 
+                "Heart valve \\(Mech/porc/bioprost\\)|valve|avr|mvr"
+            ) ~ "valve",
+            find_ind(
+                result_value, 
+                "st(ro|or)ke|cva|ica|mca"
+            ) ~ "stroke",
+            find_ind(
+                result_value, 
+                "vad|hm[ ]?ii|heart( )?mate|heartware|syncardia|total artificial heart|tah"
+            ) ~ "vad",
+            find_ind(
+                result_value, 
+                "throm|clot|emboli|occl"
+            ) ~ "thrombus",
+            find_ind(
+                result_value, 
+                "malig|anti(.)?phos|lupus|apla|hypercoag|deficien|leiden|fvl|factor v"
+            ) ~ "hypercoag",
+            find_ind(
+                result_value, 
+                "prophylax"
+            ) ~ "prophylax",
+            TRUE ~ "other"
+        )
+    ) %>%
+    distinct(encounter_id, indication) 
+    # mutate(value = TRUE) %>%
+    # spread(indication, value, fill = FALSE)
+        
+df_inr_goal <- data_warfarin_details %>%
+    filter(
+        detail == "INR Range",
+        result_value != ""
+    ) %>%
+    mutate(inr_range = result_value) %>%
+    mutate_at(
+        "inr_range", 
+        str_replace_all, 
+        pattern = " |", 
+        replacement = ""
+    ) %>%
+    mutate_at(
+        "inr_range", 
+        str_replace_all, 
+        pattern = regex("to|--|/|=|,|-\\.", ignore_case = TRUE), 
+        replacement = "-"
+    ) %>%
+     mutate_at(
+        "inr_range",
+        str_replace_all,
+        pattern = ">1.5-<2.5",
+        replacement = "1.5-2.5"
+    ) %>%
+    mutate_at(
+        "inr_range",
+        str_replace_all,
+        pattern = regex(
+            c(
+                # "^1.[5-9]$" = "1.5-2",
+                "^2$|^2.0$" = "1.5-2.5",
+                "^2\\.[1-4]$" = "2-2.5",
+                "^2.5$" = "2-3",
+                # "^2.[6-9]$" = "2.5-3",
+                "^3$" = "2.5-3.5",
+                # "^3.5$" = "3-4",
+                # "^22" = "2",
+                # "2.53.5" = "2.5-3.5",
+                "^23$" = "2-3",
+                "30$" = "3",
+                "^1-5" = "1.5"
+            ),
+            ignore_case = TRUE
+        )
+    ) %>%
+    extract(
+        inr_range,
+        c("goal_low", "goal_high"), 
+        regex = "([0-9\\.]+ ?)-( ?[0-9\\.]+)",
+        remove = FALSE, 
+        convert = TRUE
+    ) %>%
+    filter(
+        !is.na(goal_low),
+        goal_low < goal_high
+    ) %>%
+    mutate_at(c("goal_low", "goal_high"), as.numeric) %>%
+    select(-result_value, -inr_range)
 
 ```
 
@@ -337,3 +450,248 @@ df_demog %>%
     coord_flip() +
     theme_bg()
 ```
+
+```{r}
+df_pts <- select(df_demog, encounter_id, fiscal_year, consult)
+
+df_pts %>%
+    inner_join(df_indications, by = "encounter_id") %>%
+    mutate_at("indication", fct_infreq) %>%
+    mutate_at("indication", fct_rev) %>%
+    mutate_at("fiscal_year", as_factor) %>%
+    ggplot(aes(x = indication, fill = fiscal_year)) +
+    geom_bar(position = "dodge") +
+    scale_fill_brewer(palette = "Dark2") +
+    # facet_wrap(~fiscal_year) +
+    coord_flip() +
+    theme_bg()
+    
+```
+
+
+```{r}
+df_pts %>%
+    inner_join(df_indications, by = "encounter_id") %>%
+    mutate_at("indication", fct_infreq) %>%
+    mutate_at("indication", fct_rev) %>%
+    ggplot(aes(x = indication, fill = consult)) +
+    geom_bar(position = "dodge") +
+    scale_fill_brewer(palette = "Dark2") +
+    coord_flip() +
+    theme_bg()
+```
+
+```{r}
+df_warf_duration <- data_warfarin_doses %>%
+    group_by(encounter_id) %>%
+    summarize_at("med_day", list(warfarin_start = first, warfarin_stop = last))
+
+ df_doses_daily <- data_warfarin_doses %>%
+    group_by(encounter_id, fiscal_year, med_day) %>%
+    summarize_at("dose", sum, na.rm = TRUE) %>%
+    group_by(encounter_id, fiscal_year) %>%
+    mutate(warf_day = difftime(med_day, first(med_day), units = "days") + 1) %>%
+    mutate_at("warf_day", as.integer) %>%
+    filter(warf_day <= 10) %>%
+    ungroup() %>%
+    select(encounter_id, fiscal_year, warf_day, dose) 
+
+df_inr_daily <- df_warf_duration %>%
+    inner_join(data_labs, by = "encounter_id") %>%
+    filter(lab == "INR") %>%
+    mutate(
+        lab_day = floor_date(lab_datetime, unit = "days"),
+        lab_month = floor_date(lab_datetime, unit = "month"),
+        warf_day = difftime(lab_day, warfarin_start, units = "days") + 1,
+        fiscal_year = year(lab_month %m+% months(6))
+    ) %>%
+    mutate_at("warf_day", as.integer) %>%
+    filter(
+        lab_day >= warfarin_start,
+        lab_day <= warfarin_stop,
+        warf_day <= 10
+    ) %>%
+    group_by(encounter_id, fiscal_year, lab_day, warf_day) %>%
+    summarize_at("result_value", max, na.rm = TRUE) %>%
+    ungroup() %>%
+    select(encounter_id, fiscal_year, warf_day, inr = result_value) 
+
+df_consult_daily <- df_warf_duration %>%
+    mutate_at(c("warfarin_start", "warfarin_stop"), as_date) %>%
+    inner_join(data_consult_tasks, by = "encounter_id") %>%
+    mutate(
+        warf_day = difftime(task_date, warfarin_start, units = "days") + 1,
+        task_month = floor_date(task_date, unit = "month"),
+        fiscal_year = year(task_month %m+% months(6))
+    ) %>%
+    mutate_at("warf_day", as.integer) %>%
+    filter(
+        task_date >= warfarin_start,
+        task_date <= warfarin_stop,
+        warf_day <= 10
+    ) %>%
+    select(encounter_id, fiscal_year, warf_day) %>%
+    mutate(consult = TRUE)
+
+df_doses_inr <- df_doses_daily %>%
+    full_join(
+        df_inr_daily, 
+        by = c("encounter_id", "fiscal_year", "warf_day")
+    ) %>%
+    full_join(
+        df_consult_daily,
+        by = c("encounter_id", "fiscal_year", "warf_day")
+    ) %>%
+    arrange(encounter_id, warf_day)
+```
+
+```{r}
+df_doses_inr %>%
+    mutate_at("warf_day", as_factor) %>%
+    ggplot(aes(x = warf_day, y = dose, fill = consult)) +
+    geom_boxplot() +
+    # facet_wrap(~consult) +
+    theme_bg()
+```
+
+```{r}
+df_doses_inr %>%
+    ggplot(aes(x = warf_day, y = inr, color = consult)) +
+    geom_smooth() +
+    coord_cartesian(ylim = c(1, 3)) +
+    theme_bg()
+```
+
+```{r}
+df_ind_vad <- df_indications %>%
+    filter(indication == "vad")
+
+df_doses_inr %>%
+    anti_join(df_ind_vad, by = "encounter_id") %>%
+    mutate_at("warf_day", as_factor) %>%
+    ggplot(aes(x = warf_day, y = dose, fill = consult)) +
+    geom_boxplot() +
+    theme_bg()    
+
+```
+
+```{r}
+df_doses_inr %>%
+    anti_join(df_ind_vad, by = "encounter_id") %>%
+    ggplot(aes(x = warf_day, y = inr, color = consult)) +
+    geom_smooth() +
+    coord_cartesian(ylim = c(1, 3)) +
+    theme_bg()
+```
+
+```{r}
+df_goal_eq2_3 <- df_inr_goal %>%
+    filter(
+        goal_low == 2,
+        goal_high == 3
+    )
+
+df_doses_inr %>%
+    semi_join(df_goal_eq2_3, by = "encounter_id") %>%
+    mutate_at("warf_day", as_factor) %>%
+    ggplot(aes(x = warf_day, y = dose, fill = consult)) +
+    geom_boxplot() +
+    facet_wrap(~fiscal_year, ncol = 1) +
+    coord_cartesian(ylim = c(0, 15)) +
+    theme_bg()    
+
+```
+
+```{r}
+df_doses_inr %>%
+    semi_join(df_goal_eq2_3, by = "encounter_id") %>%
+    ggplot(aes(x = warf_day, y = inr, color = consult)) +
+    geom_smooth() +
+    facet_wrap(~fiscal_year, ncol = 1) +
+    coord_cartesian(ylim = c(1, 3)) +
+    theme_bg()
+```
+
+```{r}
+df_doses_inr %>%
+    semi_join(df_goal_eq2_3, by = "encounter_id") %>%
+    filter(consult) %>%
+    mutate_at(c("warf_day", "fiscal_year"), as_factor) %>%
+    ggplot(aes(x = warf_day, y = dose, fill = fiscal_year)) +
+    geom_boxplot() +
+    coord_cartesian(ylim = c(0, 15)) +
+    theme_bg()    
+
+```
+
+```{r}
+df_doses_inr %>%
+    semi_join(df_goal_eq2_3, by = "encounter_id") %>%
+    filter(consult) %>%
+    mutate_at("fiscal_year", as_factor) %>%
+    ggplot(aes(x = warf_day, y = inr, color = fiscal_year)) +
+    geom_smooth() +
+    coord_cartesian(ylim = c(1, 3)) +
+    theme_bg()
+```
+
+```{r}
+df_hgb <- df_warf_duration %>%
+    inner_join(data_labs, by = "encounter_id") %>%
+    filter(lab == "Hgb") %>%
+    mutate(
+        lab_day = floor_date(lab_datetime, unit = "days"),
+        lab_month = floor_date(lab_datetime, unit = "month"),
+        warf_day = difftime(lab_day, warfarin_start, units = "days") + 1,
+        fiscal_year = year(lab_month %m+% months(6))
+    ) %>%
+    mutate_at("warf_day", as.integer) %>%
+    filter(
+        lab_day >= warfarin_start,
+        lab_day <= warfarin_stop + 1,
+    ) 
+
+dt_hgb <- as.data.table(df_hgb)
+
+dt_window <- dt_hgb[, .(
+    encounter_id, 
+    window_low = lab_datetime - hours(48), 
+    window_high = lab_datetime
+)]
+
+dt_hgb_max <- dt_hgb[
+    dt_window, 
+    on=.(
+        encounter_id, 
+        lab_datetime >= window_low, 
+        lab_datetime <= window_high
+    ), 
+    .(max_hgb = max(result_value)), 
+    by=.EACHI
+    ][, lab_datetime := NULL
+      ][, head(.SD, 1), by = c("encounter_id", "lab_datetime")]
+
+dt_hgb_drop <- dt_hgb[dt_hgb_max, on=.(encounter_id, lab_datetime)]
+
+# [, `:=`(
+#         time_first = difftime(
+#             lab_datetime, 
+#             first(lab_datetime), 
+#             units = "hours")
+#     )
+#     ][time_first >= 2 & max_sbp < 150
+#       ][, head(.SD, 1), by = encounter_id]
+
+df_hgb_drop <- as_tibble(dt_hgb_drop) %>%
+    arrange(encounter_id, lab_datetime) %>%
+    mutate(hgb_chg = result_value - max_hgb) %>%
+    filter(
+        hgb_chg <= -2,
+        warf_day <= 10
+    ) %>%
+    distinct(encounter_id, .keep_all = TRUE)
+
+```
+
+
+
