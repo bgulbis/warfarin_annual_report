@@ -483,10 +483,12 @@ df_pts %>%
 
 ```{r}
 df_warf_duration <- data_warfarin_doses %>%
+    arrange(encounter_id, med_datetime) %>%
     group_by(encounter_id) %>%
     summarize_at("med_day", list(warfarin_start = first, warfarin_stop = last))
 
  df_doses_daily <- data_warfarin_doses %>%
+    arrange(encounter_id, med_datetime) %>%
     group_by(encounter_id, fiscal_year, med_day) %>%
     summarize_at("dose", sum, na.rm = TRUE) %>%
     group_by(encounter_id, fiscal_year) %>%
@@ -638,6 +640,7 @@ df_doses_inr %>%
 ```{r}
 df_hgb <- df_warf_duration %>%
     inner_join(data_labs, by = "encounter_id") %>%
+    arrange(encounter_id, lab_datetime) %>%
     filter(lab == "Hgb") %>%
     mutate(
         lab_day = floor_date(lab_datetime, unit = "days"),
@@ -673,23 +676,52 @@ dt_hgb_max <- dt_hgb[
 
 dt_hgb_drop <- dt_hgb[dt_hgb_max, on=.(encounter_id, lab_datetime)]
 
-# [, `:=`(
-#         time_first = difftime(
-#             lab_datetime, 
-#             first(lab_datetime), 
-#             units = "hours")
-#     )
-#     ][time_first >= 2 & max_sbp < 150
-#       ][, head(.SD, 1), by = encounter_id]
-
 df_hgb_drop <- as_tibble(dt_hgb_drop) %>%
     arrange(encounter_id, lab_datetime) %>%
     mutate(hgb_chg = result_value - max_hgb) %>%
     filter(
         hgb_chg <= -2,
         warf_day <= 10
-    ) %>%
+    ) %>% 
     distinct(encounter_id, .keep_all = TRUE)
+
+```
+
+```{r}
+tmp_goals <- df_inr_goal %>%
+    select(encounter_id, goal_low, goal_high)
+
+df_inr_tx <- df_warf_duration %>%
+    inner_join(data_labs, by = "encounter_id") %>%
+    filter(lab == "INR") %>%
+    mutate(
+        lab_day = floor_date(lab_datetime, unit = "days"),
+        lab_month = floor_date(lab_datetime, unit = "month"),
+        warf_day = difftime(lab_day, warfarin_start, units = "days") + 1,
+        fiscal_year = year(lab_month %m+% months(6))
+    ) %>%
+    mutate_at("warf_day", as.integer) %>%
+    filter(
+        lab_day >= warfarin_start,
+        lab_day <= warfarin_stop
+    ) %>%
+    inner_join(tmp_goals, by = "encounter_id") %>%
+    arrange(encounter_id, lab_datetime) %>%
+    filter(
+        result_value >= goal_low,
+        result_value <= goal_high
+    ) %>%
+    distinct(encounter_id, .keep_all = TRUE) %>%
+    filter(fiscal_year == 2019) %>%
+    left_join(df_consult_pts[c("encounter_id", "consult")], by = "encounter_id") %>%
+    mutate_at("consult", list(~coalesce(., FALSE)))
+
+df_inr_tx %>%
+    semi_join(df_goal_eq2_3, by = "encounter_id") %>%
+    ggplot(aes(x = consult, y = warf_day)) +
+    geom_boxplot() +
+    coord_cartesian(ylim = c(0, 10)) +
+    theme_bg_print(base_family = "serif")
 
 ```
 
