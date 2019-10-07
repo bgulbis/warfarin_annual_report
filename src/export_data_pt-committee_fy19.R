@@ -374,6 +374,22 @@ xl_nurse_unit <- df_warf_ord %>%
     pivot_wider(names_from = consult, values_from = n) %>%
     select(nurse_unit_order, Pharmacy, Traditional)
 
+# indications ------------------------------------------
+
+df_pts <- select(df_demog, encounter_id, fiscal_year, consult)
+
+df_pts %>%
+    inner_join(df_indications, by = "encounter_id") %>%
+    mutate_at("indication", fct_infreq) %>%
+    mutate_at("indication", fct_rev) %>%
+    mutate_at("fiscal_year", as_factor) %>%
+    ggplot(aes(x = indication, fill = fiscal_year)) +
+    geom_bar(position = "dodge") +
+    # scale_fill_brewer(palette = "Dark2") +
+    # facet_wrap(~fiscal_year) +
+    coord_flip() +
+    theme_bg()
+
 # export -----------------------------------------------
 
 export <- list(
