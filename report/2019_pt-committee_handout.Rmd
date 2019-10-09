@@ -38,6 +38,7 @@ find_ind <- function(x, reg) {
     stringr::str_detect(x, regex(reg, ignore_case = TRUE))
 }
 
+data_blood <- get_data(data_dir, "blood_products") 
 
 data_consult_orders <- get_data(data_dir, "consult_orders") %>%
     filter(str_detect(nurse_unit, "^HH|^HVI")) %>%
@@ -190,7 +191,7 @@ df_inr_goal <- data_warfarin_details %>%
 
 ```
 
-```{r}
+```{r tidying}
 df_consult_pts <- data_consult_orders %>%
     arrange(encounter_id, order_datetime) %>%
     distinct(encounter_id, .keep_all = TRUE) %>%
@@ -242,9 +243,7 @@ df_doac_month <- data_doac_doses %>%
     distinct(encounter_id, medication, med_month, med_day) %>%
     count(med_month, name = "doac") %>%
     mutate_at("med_month", as_date)
-```
 
-```{r}
 df_warf_ord <- data_warfarin_orders %>%
     rename(
         nurse_unit_order = nurse_unit,
@@ -320,11 +319,38 @@ df_doses_inr <- df_doses_daily %>%
     ) %>%
     arrange(encounter_id, warf_day)
 
+df_group <- df_doses_inr %>%
+    filter(warf_day < 3) %>%
+    group_by(encounter_id, fiscal_year) %>%
+    summarize_at("consult", sum, na.rm = TRUE) %>%
+    mutate_at("consult", list(~. > 0))
+
+df_doses_cnt <- df_doses_inr %>%
+    group_by(encounter_id, fiscal_year) %>%
+    summarize(
+        doses_n = sum(!is.na(dose), na.rm = TRUE)
+    )
+
+df_doses_3 <- df_doses_cnt %>%
+    inner_join(df_group, by = c("encounter_id", "fiscal_year")) %>%
+    filter(
+        doses_n >= 3,
+        fiscal_year == 2019
+    )
+  
 df_goal_eq2_3 <- df_inr_goal %>%
+    semi_join(df_doses_3, by = "encounter_id") %>%
     filter(
         goal_low == 2,
         goal_high == 3
-    )
+    ) %>%
+    distinct(encounter_id) %>%
+    mutate(goal2_3 = TRUE)
+
+tidy_pts <- df_doses_3 %>%
+    left_join(df_goal_eq2_3, by = "encounter_id") %>%
+    mutate_at("goal2_3", list(~coalesce(., FALSE))) %>%
+    ungroup()
 
 ```
 
@@ -343,12 +369,36 @@ df_warf_month %>%
     inner_join(df_doac_month, by = "med_month") %>%
     gather(key, value, -med_month) %>%
     ggplot(aes(x = med_month, y = value, color = key, size = key)) +
-    annotate("text", x = mdy("9/1/2016"), y = 950, label = "All warfarin\npatients", family = "serif", color = "grey25") +
-    annotate("text", x = mdy("9/1/2016"), y = 750, label = "Pharmacy\nconsults", family = "serif", color = "black") +
-    annotate("text", x = mdy("9/1/2016"), y = 250, label = "DOACs", family = "serif", color = "grey50") +
+    annotate(
+        "text", 
+        x = mdy("9/1/2016"), 
+        y = 950, 
+        label = "All warfarin\npatients", 
+        family = "serif", 
+        color = "grey25",
+        size = 2.5
+    ) +
+    annotate(
+        "text", 
+        x = mdy("9/1/2016"), 
+        y = 750, 
+        label = "Pharmacy\nconsults", 
+        family = "serif", 
+        color = "black",
+        size = 2.5
+    ) +
+    annotate(
+        "text", 
+        x = mdy("9/1/2016"),
+        y = 250, 
+        label = "DOACs", 
+        family = "serif", 
+        color = "grey50",
+        size = 2.5
+    ) +
     geom_line() +
     ggtitle("Monthly doses of oral anticoagulants") +
-    scale_x_date(NULL, date_breaks = "4 months", date_labels = "%b %y") +
+    scale_x_date(NULL, date_breaks = "6 months", date_labels = "%b %y") +
     scale_y_continuous("Doses") +
     scale_color_manual(NULL, values = c("black", "grey50", "grey25")) +
     scale_size_manual(NULL, values = c(1, 0.5, 0.5)) +
@@ -407,7 +457,7 @@ df_demog %>%
             "valve" = "Valve",
             "dvt" = "DVT",
             "hypercoag" = "Hypercoaguable",
-            "pe" = "PE",
+            "^pe" = "PE",
             "thrombus" = "Thrombus",
             "stroke" = "Stroke",
             "other" = "Other"
@@ -533,8 +583,24 @@ df_doses_inr %>%
     mutate_at("consult", list(~coalesce(., FALSE))) %>%
     ggplot(aes(x = warf_day, y = inr, color = consult)) +
     geom_hline(yintercept = 2, linetype = "dashed", color = "grey75") +
-    annotate("text", x = 1.5, y = 1.4, label = "Pharmacy", color = "black", family = "serif") + # adjust font face and size
-    annotate("text", x = 1.5, y = 1.8, label = "Traditional", color = "grey50", family = "serif") +
+    annotate(
+        "text", 
+        x = 1.5, 
+        y = 1.3, 
+        label = "Pharmacy",
+        color = "black",
+        family = "serif",
+        size = 2.5
+    ) + 
+    annotate(
+        "text", 
+        x = 1.5, 
+        y = 1.8, 
+        label = "Traditional",
+        color = "grey50", 
+        family = "serif",
+        size = 2.5
+    ) +
     geom_smooth() +
     ggtitle("INR response") +
     scale_x_continuous("Day of therapy", breaks = seq(1, 10, 1)) +
@@ -614,6 +680,32 @@ df_hgb_drop <- as_tibble(dt_hgb_drop) %>%
 
 ```
 
+```{r prbc}
+df_prbc <- data_blood %>%
+    inner_join(df_warf_duration, by = "encounter_id") %>%
+    filter(
+        str_detect(product, regex("rbc", ignore_case = TRUE)),
+        event_datetime >= warfarin_start,
+        event_datetime <= warfarin_stop 
+    ) %>%
+    distinct(encounter_id) %>%
+    mutate(prbc = TRUE)
+
+```
+
+```{r ffp}
+df_ffp <- data_blood %>%
+    inner_join(df_warf_duration, by = "encounter_id") %>%
+    filter(
+        str_detect(product, regex("ffp|plasma", ignore_case = TRUE)),
+        event_datetime >= warfarin_start,
+        event_datetime <= warfarin_stop 
+    ) %>%
+    distinct(encounter_id) %>%
+    mutate(ffp = TRUE)
+
+```
+
 ```{r reversal}
 df_reversal <- data_reversal_meds %>%
     inner_join(df_warf_duration, by = "encounter_id") %>%
@@ -626,88 +718,161 @@ df_reversal <- data_reversal_meds %>%
 ```
 
 ```{r revisits}
-df_revisit <- df_demog %>%
-    left_join(data_reencounters, by = "encounter_id") %>%
+df_dispo <- df_demog %>%
+    select(encounter_id, disch_disposition) %>%
+    # inner_join(tidy_pts, by = "encounter_id") %>%
+    mutate(
+        dispo_group = case_when(
+            str_detect(disch_disposition, "Hospice|Deceased") ~ "Deceased",
+            str_detect(disch_disposition, "Home|Left") ~ "Home",
+            str_detect(disch_disposition, "Facility|REHAB|Care|DC/TF") ~ "Transfer"
+        )
+    )
+
+df_revisit <- df_dispo %>%
+    filter(dispo_group == "Home") %>%
+    inner_join(data_reencounters, by = "encounter_id") %>%
     distinct(encounter_id) %>%
     mutate(revisit = TRUE)
 ```
 
 ```{r readmits}
-df_readmit <- df_demog %>%
-    left_join(data_reencounters, by = "encounter_id") %>%
+df_readmit <- df_dispo %>%
+    filter(dispo_group == "Home") %>%
+    inner_join(data_reencounters, by = "encounter_id") %>%
     filter(readmit_type == "Inpatient") %>%
     distinct(encounter_id) %>%
     mutate(readmit = TRUE)
 ```
 
 ```{r}
-df_outcomes <- df_demog %>%
+df_outcomes <- tidy_pts %>%
+    left_join(df_dispo, by = "encounter_id") %>%
     left_join(df_high_inr, by = "encounter_id") %>%
     left_join(df_hgb_drop, by = "encounter_id") %>%
+    left_join(df_prbc, by = "encounter_id") %>%
+    left_join(df_ffp, by = "encounter_id") %>%
     left_join(df_reversal, by = "encounter_id") %>%
     left_join(df_revisit, by = "encounter_id") %>%
-    left_join(df_readmit, by = "encounter_id") %>%
-    filter(fiscal_year == 2019) %>%
-    select(encounter_id, consult, disch_disposition, high_inr:readmit) %>%
+    left_join(df_readmit, by = "encounter_id") %>%               
+    # filter(fiscal_year == 2019) %>%
+    select(encounter_id, consult, dispo_group, high_inr:readmit) %>%
     mutate_at(
-        c("high_inr", "hgb_drop", "reversal_med", "revisit", "readmit"),
+        c(
+            "high_inr", 
+            "hgb_drop", 
+            "prbc",
+            "ffp",
+            "reversal_med"
+        ),
         list(~coalesce(., FALSE))
+    ) %>%
+    mutate_at(
+        c("revisit", "readmit"),
+        list(~if_else(dispo_group == "Home", coalesce(., FALSE), .))
+    ) %>%
+    mutate_at("consult", list(~if_else(., "Pharmacy", "Traditional"))) %>%
+    add_count(consult, name = "group_n")
+
+df_outcomes_cnt <- df_outcomes %>%
+    group_by(consult, group_n) %>%
+    summarize_at(
+        c(
+            "high_inr", 
+            "hgb_drop", 
+            "prbc",
+            "ffp",
+            "reversal_med",
+            "revisit", 
+            "readmit"
+        ),
+        sum,
+        na.rm = TRUE
+    )
+
+df_outcomes_pct <- df_outcomes %>%
+    select(-group_n) %>%
+    group_by(consult) %>%
+    summarize_at(
+        c(
+            "high_inr", 
+            "hgb_drop", 
+            "prbc",
+            "ffp",
+            "reversal_med",
+            "revisit", 
+            "readmit"
+        ),
+        mean,
+        na.rm = TRUE
+    ) %>%
+    pivot_longer(
+        high_inr:readmit, 
+        names_to = "outcome", 
+        values_to = "pct"
+    ) %>%
+    mutate_at("pct", list(~. * 100)) %>%
+    pivot_wider(
+        names_from = "consult",
+        values_from = "pct"
     )
 ```
 
+```{r}
+df_p <- df_outcomes %>%
+    mutate_at(c("consult", "dispo_group"), as_factor) 
 
-```{r, eval=FALSE}
-prbc <- data_prbc %>%
-    distinct(millennium.id, .keep_all = TRUE) %>%
-    full_join(
-        data_warfarin[c("millennium.id", "group", "warfarin_start")], 
-        by = "millennium.id"
+# chisq.test(x = df_p$consult, y = df_p$dispo_group)
+# chisq.test(x = df_p$consult, y = df_p$high_inr)
+# chisq.test(x = df_p$consult, y = df_p$hgb_drop)
+# chisq.test(x = df_p$consult, y = df_p$prbc)
+# chisq.test(x = df_p$consult, y = df_p$ffp)
+# chisq.test(x = df_p$consult, y = df_p$reversal_med)
+# chisq.test(x = df_p$consult, y = df_p$revisit)
+# chisq.test(x = df_p$consult, y = df_p$readmit)
+
+df_outcomes %>%
+    filter(!is.na(dispo_group)) %>%
+    count(consult, group_n, dispo_group) %>%
+    mutate(dispo_pct = n / group_n * 100) %>%
+    select(-group_n, -n) %>%
+    pivot_wider(
+        names_from = "consult",
+        values_from = "dispo_pct"
     ) %>%
-    filter(
-        warfarin_start >= start_date,
-        warfarin_start <= end_date
-    ) 
-
-tbl_prbc <- prbc %>%
-    mutate(prbc = !is.na(prbc_day)) %>%
-    group_by(group) %>%
-    summarize_at("prbc", mean, na.rm = TRUE) %>%
-    mutate_at("prbc", funs(. * 100)) %>%
-    spread(group, prbc) %>%
-    mutate(Event = "Transfusion PRBC") 
-
-tmp_prbc <- prbc %>%
-    mutate(prbc = if_else(!is.na(prbc_day), "prbc", "no_prbc")) %>%
-    mutate_at(c("group", "prbc"), factor)
-
-p_prbc <- chisq.test(tmp_prbc$group, tmp_prbc$prbc)
+    knitr::kable(
+        format = "latex",
+        digits = 0,
+        booktabs = TRUE,
+        col.names = c(
+            "Discharge Disposition",
+            "Pharmacy (%)",
+            "Traditional (%)"
+        ),
+        caption = "Disposition of patient on discharge from MH-TMC. More patients in the pharmacy group required additional treatment at a LTAC, SNF, or Rehab facility."
+    )
 ```
 
-```{r, eval=FALSE}
-ffp <- data_ffp %>%
-    distinct(millennium.id, .keep_all = TRUE) %>%
-    full_join(
-        data_warfarin[c("millennium.id", "group", "warfarin_start")], 
-        by = "millennium.id"
-    ) %>%
-    filter(
-        warfarin_start >= start_date,
-        warfarin_start <= end_date
+```{r}
+df_outcomes_pct %>%
+    knitr::kable(
+        format = "latex",
+        digits = 0,
+        booktabs = TRUE,
+        col.names = c(
+            "Outcome",
+            "Pharmacy (%)",
+            "Traditional (%)"
+        ),
+        caption = paste(
+            "Outcomes and events during the first 10 days of warfarin therapy.",
+            "High INR is defined as an INR of 5 or greater after warfarin initiation.",
+            "Hemoglobin decrease includes a drop of >/= 2 g/dL within a 48-hour period.",
+            "Reversal medications include phytonadione, 4-factor PCC, factor VIIa, aminocaproic acid, and tranexamic acid.", 
+            "Unplanned return includes any ER visit, observation, or inpatient stay at any MH hospital within 30 days of discharge among patients who were discharged home.",
+            sep = " "
+        )
     ) 
-
-tbl_ffp <- ffp %>%
-    mutate(ffp = !is.na(ffp_day)) %>%
-    group_by(group) %>%
-    summarize_at("ffp", mean, na.rm = TRUE) %>%
-    mutate_at("ffp", funs(. * 100)) %>%
-    spread(group, ffp) %>%
-    mutate(Event = "Transfusion FFP") 
-
-tmp_ffp <- ffp %>%
-    mutate(ffp = if_else(!is.na(ffp_day), "ffp", "no_ffp")) %>%
-    mutate_at(c("group", "ffp"), factor)
-
-p_ffp <- chisq.test(tmp_ffp$group, tmp_ffp$ffp)
 ```
 
 
