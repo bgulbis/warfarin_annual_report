@@ -1,10 +1,10 @@
 ---
-title: "Review of warfarin dosing by the Pharmacy Dosing Service in fiscal year 2019"
+title: "Warfarin Pharmacy Dosing Service analysis for fiscal year 2019"
 author: "Brian Gulbis, PharmD, BCPS"
 date: "October 28, 2019"
 output:
   tufte::tufte_handout:
-    latex_engine: pdflatex
+    latex_engine: xelatex
 link-citations: yes
 ---
 
@@ -377,9 +377,9 @@ pct_warf_use <- df_cnt %>%
 
 The Department of Pharmacy's Warfarin Dosing Service was consulted on `r round(n_consult_fy19$pct, 0)`% of warfarin patients in fiscal year 2019 (FY19). The service lines with the highest utilization were Internal Medicine, CV Surgery, and Neurology. Patients managed by the pharmacy service were more likely to reach the target therapeutic range compared with traditional provider management of warfarin. 
 
-# Service Utilization
+# Warfarin Utilization
 
-There was a `r round(pct_warf_use$pct_chg, 0)`% decrease in the total number of warfarin doses administered in FY19 compared with FY17, due primarily to an increase in the use of Direct Oral Anticoagulants (DOACs), such as apixaban and rivaroxaban (see Figure 1). 
+There was a `r round(pct_warf_use$pct_chg, 0)`% decrease in the total number of warfarin doses administered in FY19 compared with FY17, due primarily to an increase in the use of Direct Oral Anticoagulants (DOACs), such as apixaban and rivaroxaban (see Figure 1). The Pharmacy Dosing Service was consulted on `r round(n_consult_fy19$pct, 0)`% of warfarin patients in FY19.
 
 ```{r, fig.cap="The number of monthly doses of warfarin, number of monthly warfarin doses managed by the Pharmacy Dosing Service, and the number of monthly doses of direct oral anticoagulants (DOACs) over the past three fiscal years."}
 
@@ -387,7 +387,7 @@ df_warf_month %>%
     inner_join(df_consult_month, by = c("med_month" = "task_month")) %>%
     inner_join(df_doac_month, by = "med_month") %>%
     gather(key, value, -med_month) %>%
-    ggplot(aes(x = med_month, y = value, color = key, size = key)) +
+    ggplot(aes(x = med_month, y = value, color = key, size = key, linetype = key)) +
     annotate(
         "text", 
         x = mdy("9/1/2016"), 
@@ -419,8 +419,9 @@ df_warf_month %>%
     # ggtitle("Monthly doses of oral anticoagulants") +
     scale_x_date(NULL, date_breaks = "6 months", date_labels = "%b %y") +
     scale_y_continuous("Doses") +
-    scale_color_manual(NULL, values = c("black", "grey50", "grey25")) +
+    scale_color_manual(NULL, values = c("black", "grey50", "grey50")) +
     scale_size_manual(NULL, values = c(1, 0.5, 0.5)) +
+    scale_linetype_manual(NULL, values = c("solid", "dashed", "solid")) +
     theme_bg_print(base_family = "serif") +
     theme(
         legend.position = "none", 
@@ -431,9 +432,9 @@ df_warf_month %>%
 
 ```
 
-The highest volume of warfarin use occured in patients on the Cardiology service line, followed by Internal Medicine, CV Surgery, and Neurology (see Figure 2). The Cardiology service line continues to manage the majority of their own warfarin doses, although Clinical Pharmacists and Clinical Pharmacist-Specialists participate in the dosing of warfarin on these patients outside of a formal consult to the Pharmacy Dosing Service.
+The highest volume of warfarin use occured in patients on the Cardiology service line, followed by Internal Medicine, CV Surgery, and Neurology (see Figure 2). The Cardiology service line primarily utilizes traditional provider management of warfarin, although Clinical Pharmacists and Clinical Pharmacist-Specialists participate in the dosing of warfarin on these patients outside of a formal consult to the Pharmacy Dosing Service.
 
-```{r, fig.cap="The number of orders for warfarin by the primary service at the time of warfarin initiation. The Cardiology service line remains the largest user of warfarin. The Pharmacy Dosing Service manages the majority of warfarin dosing for patients on all other service lines."}
+```{r, fig.cap="The number of warfarin patients by the primary service at the time of warfarin initiation. The Cardiology service line remains the largest user of warfarin. The Pharmacy Dosing Service manages the majority of warfarin dosing for patients on most other service lines."}
 df_warf_ord %>%
     filter(fiscal_year == 2019) %>%
     mutate_at(
@@ -469,9 +470,9 @@ df_warf_ord %>%
     guides(fill = guide_legend(override.aes = list(size = 3)))
 ```
 
-Patients who are on warfarin due to a ventricular assist device (VAD) are primarily managed through traditional provider dosing. The Pharmacy Dosing Service manages the majority of patients for all other indications (see Figure 3). 
+The warfarin dosing for patients with a ventricular assist device (VAD) is primarily managed by traditional provider dosing. The Pharmacy Dosing Service manages the majority of patients with all other indications for anticoagulation (see Figure 3). 
 
-```{r, fig.cap="The indications for oral anticoagulation. The most common indication for warfarin was atrial fibrillation (A.fib), followed by ventricular assist devices (VADs), mechanical heart valves, deep vein thrombosis (DVTs), and pulmonary embolisms (PEs)."}
+```{r, fig.cap="Indications for oral anticoagulation. The most common indication for warfarin was atrial fibrillation (A.fib), followed by ventricular assist devices (VADs), mechanical heart valves, deep vein thrombosis (DVTs), and pulmonary embolisms (PEs)."}
 df_demog %>%
     filter(fiscal_year == 2019) %>%
     inner_join(df_indications, by = "encounter_id") %>%
@@ -527,8 +528,9 @@ n_pts <- tidy_pts %>%
 
 ```
 
+Patients managed by the Pharmacy Dosing Service typically received a higher daily warfarin dose than those managed by other providers. Only patients with an INR target between 2 and 3 were included to ensure the goal therapeutic range was equivalent in both groups.
 
-```{r, fig.cap="The daily warfarin dose administered to patients in each group. Patients in the Pharmacy Dosing Service group received a higher daily warfarin dose than those in the traditional provider management group. The p-value is < 0.01 for each day of warfarin therapy. Only patients with an INR target of 2 to 3 were included."}
+```{r, fig.cap="The daily warfarin dose administered to patients in each group. Patients in the Pharmacy Dosing Service group received a higher daily warfarin dose than those in the traditional provider management group. The p-value is < 0.01 for each day of warfarin therapy."}
 p <- df_doses_inr %>%
     semi_join(tidy_pts, by = "encounter_id") %>%
     filter(
@@ -605,9 +607,9 @@ df_doses_inr %>%
 
 ```
 
-Patients managed by the Pharmacy Dosing Service had a greater rise in INR over the first 10 days of therapy, and were more likely to reach an INR around 2 on day 5 (see Figure 5). 
+Despite starting with a lower baseline INR, patients managed by the Pharmacy Dosing Service had a greater rise in INR over the first 10 days of therapy, and were more likely to reach an INR around 2 on day 5 (see Figure 5). 
 
-```{r, fig.cap="The daily INR value for patients in each group over the first 10 days of warfarin therapy. There was a larger increase in the INR for patients managed by the Pharmacy Dosing Service. The p-value was < 0.05 on all days except days 5 and 6 where there was no significant difference. Only patients with an INR target of 2 to 3 were included."}
+```{r, fig.cap="The daily INR value for patients in each group over the first 10 days of warfarin therapy. There was a larger increase in the INR for patients managed by the Pharmacy Dosing Service. The p-value was < 0.05 on all days except days 5 and 6 where there was no significant difference."}
 
 p <- df_doses_inr %>%
     semi_join(tidy_pts, by = "encounter_id") %>%
@@ -844,6 +846,26 @@ df_outcomes_cnt <- df_outcomes %>%
         na.rm = TRUE
     )
 
+```
+
+```{r eval=FALSE}
+df_p <- df_outcomes %>%
+    mutate_at(c("consult", "dispo_group"), as_factor) 
+
+chisq.test(x = df_p$consult, y = df_p$dispo_group)
+chisq.test(x = df_p$consult, y = df_p$high_inr)
+chisq.test(x = df_p$consult, y = df_p$hgb_drop)
+chisq.test(x = df_p$consult, y = df_p$prbc)
+chisq.test(x = df_p$consult, y = df_p$ffp)
+chisq.test(x = df_p$consult, y = df_p$reversal_med)
+chisq.test(x = df_p$consult, y = df_p$revisit)
+chisq.test(x = df_p$consult, y = df_p$readmit)
+
+```
+
+There were no differences in supratherapeutic INR, bleeding, need for transfusion, or need for anticoagulation reversal between the two groups (see Table 1).
+
+```{r outcomes}
 df_outcomes_pct <- df_outcomes %>%
     select(-group_n) %>%
     group_by(consult) %>%
@@ -854,7 +876,7 @@ df_outcomes_pct <- df_outcomes %>%
             "prbc",
             "ffp",
             "reversal_med",
-            "revisit", 
+            "revisit",
             "readmit"
         ),
         mean,
@@ -874,8 +896,8 @@ df_outcomes_pct <- df_outcomes %>%
             "prbc" = "Transfuse PRBC",
             "ffp" = "Transfuse FFP",
             "reversal_med" = "Adminster reversal agent",
-            "revisit" = "Unplanned return",
-            "readmit" = "Hospital readmission"
+            "revisit" = "Unplanned return*",
+            "readmit" = "Hospital readmission*"
         )
     ) %>%
     mutate_at("pct", list(~. * 100)) %>%
@@ -883,54 +905,12 @@ df_outcomes_pct <- df_outcomes %>%
         names_from = "consult",
         values_from = "pct"
     )
-```
 
-There was a larger percent of patients managed by the Pharmacy Dosing Service who were transferred to another facility for long-term care (see Table 1). 
-
-```{r dispo}
-df_outcomes %>%
-    filter(!is.na(dispo_group)) %>%
-    count(consult, group_n, dispo_group) %>%
-    mutate(dispo_pct = n / group_n * 100) %>%
-    select(-group_n, -n) %>%
-    pivot_wider(
-        names_from = "consult",
-        values_from = "dispo_pct"
-    ) %>%
-    knitr::kable(
-        format = "latex",
-        digits = 0,
-        booktabs = TRUE,
-        col.names = c(
-            "Discharge Disposition",
-            "Pharmacy (%)",
-            "Traditional (%)"
-        ),
-        caption = "Disposition of patient on discharge from MH-TMC. More patients in the pharmacy group required additional treatment at a LTAC, SNF, or Rehab facility."
-    )
-
-```
-
-
-```{r eval=FALSE}
-df_p <- df_outcomes %>%
-    mutate_at(c("consult", "dispo_group"), as_factor) 
-
-# chisq.test(x = df_p$consult, y = df_p$dispo_group)
-# chisq.test(x = df_p$consult, y = df_p$high_inr)
-# chisq.test(x = df_p$consult, y = df_p$hgb_drop)
-# chisq.test(x = df_p$consult, y = df_p$prbc)
-# chisq.test(x = df_p$consult, y = df_p$ffp)
-# chisq.test(x = df_p$consult, y = df_p$reversal_med)
-# chisq.test(x = df_p$consult, y = df_p$revisit)
-# chisq.test(x = df_p$consult, y = df_p$readmit)
-
-```
-
-There were no differences in bleeding, need for anticoagulation reversal, readmission within 30 dyas, or other adverse events between groups (see Table 2).
-
-```{r outcomes}
 df_outcomes_pct %>%
+    filter(
+        outcome != "Unplanned return*",
+        outcome != "Hospital readmission*"
+    ) %>%
     knitr::kable(
         format = "latex",
         digits = 0,
@@ -940,57 +920,66 @@ df_outcomes_pct %>%
             "Pharmacy (%)",
             "Traditional (%)"
         ),
-        caption = paste(
-            "Outcomes and events during the first 10 days of warfarin therapy.",
-            "High INR is defined as an INR of 5 or greater after warfarin initiation.",
-            "Hemoglobin decrease includes a drop of >/= 2 g/dL within a 48-hour period.",
-            "Reversal medications include phytonadione, 4-factor PCC, factor VIIa, aminocaproic acid, and tranexamic acid.", 
-            "Unplanned return includes any ER visit, observation, or inpatient stay at any MH hospital within 30 days of discharge among patients who were discharged home.",
-            sep = " "
-        )
-    ) 
+        caption = "Outcomes and events during the first 10 days of warfarin therapy."
+    ) %>%
+    footnote(
+        number = c(
+            "High INR is defined as an INR of 5 or greater after warfarin initiation.", 
+            "Hemoglobin decrease includes a drop of >/= 2 g/dL within a 48-hour period.", 
+            "Reversal medications include phytonadione, 4-factor PCC, factor VIIa, aminocaproic acid, and tranexamic acid."
+        ),
+        threeparttable = TRUE,
+        general_title = "",
+        fixed_small_size = TRUE
+    )
+
 ```
 
+A larger percent of patients managed by the Pharmacy Dosing Service were discharged to another facility for additional care (see Table 2). Among patients who were discharged home, a larger percent of patients in the traditional provider group had an unplanned return or readmission within 30 days.
 
-```{r, eval=FALSE}
-p <- c(
-    p_hgb$p.value, 
-    p_vizient$p.value,
-    p_prbc$p.value,
-    p_ffp$p.value, 
-    p_reversal$p.value,
-    p_procedures$p.value, 
-    p_revisit$p.value, 
-    p_readmit$p.value
-)
-
-tbl_hgb %>%
-    bind_rows(
-        tbl_vizient,
-        tbl_prbc, 
-        tbl_ffp, 
-        tbl_reversal, 
-        tbl_procedures, 
-        tbl_revisit, 
-        tbl_readmit
+```{r dispo}
+df_outcome_dispo <- df_outcomes %>%
+    filter(!is.na(dispo_group)) %>%
+    count(consult, group_n, dispo_group) %>%
+    mutate(dispo_pct = n / group_n * 100) %>%
+    select(-group_n, -n) %>%
+    pivot_wider(
+        names_from = "consult",
+        values_from = "dispo_pct"
     ) %>%
-    select(Event, pharmacy, traditional) %>%
-    mutate(p = p) %>%
+    rename(outcome = dispo_group)
+
+df_outcome_revisit <- df_outcomes_pct %>%
+    filter(
+        outcome %in% c("Unplanned return*", "Hospital readmission*")
+    )
+
+df_outcome_dispo %>%
+    bind_rows(df_outcome_revisit) %>%
     knitr::kable(
         format = "latex",
-        digits = c(0, 1, 1, 2), 
+        digits = 0,
         booktabs = TRUE,
-        col.names = c("Event", "%", "%", "p-value"), 
-        caption = paste(
-            "Outcomes and Events During Warfarin Therapy.",
-            "Hemoglobin decrease includes a drop of >/= 2 g/dL within a 48-hour period.",
-            "A new Vizient metric evaluates the percent of patients on warfarin for more than two days who experience an INR >/= 5 at any point during the hospitalization after warfarin initation.", 
-            "Reversal medications include phytonadione, 4-factor PCC, factor VIIa, aminocaproic acid, and tranexamic acid", 
-            "Unplanned return includes any ER visit, observation, or inpatient stay at any MH hospital within 30 days of discharge from MH-TMC",
-            sep = " "
-        )
+        col.names = c(
+            "Outcome",
+            "Pharmacy (%)",
+            "Traditional (%)"
+        ),
+        caption = "Discharge disposition and unplanned return within 30 days."
     ) %>%
-    add_header_above(c("", "Pharmacy", "Traditional", ""), align = "r", line = FALSE)
+    pack_rows(
+        "Discharge disposition*", 
+        start_row = 1, 
+        end_row = 3,
+        bold = FALSE) %>%
+    footnote(
+        symbol = "p-value < 0.001",
+        number = "Unplanned return includes any ER visit, observation, or inpatient stay at any MH hospital within 30 days of discharge among patients who were discharged home.",
+        footnote_order = c("symbol", "number"),
+        threeparttable = TRUE,
+        general_title = "",
+        fixed_small_size = TRUE
+    )
 ```
 
 # Conclusion
