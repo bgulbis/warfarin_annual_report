@@ -18,8 +18,20 @@ WHERE
 	AND	ORDERS.TEMPLATE_ORDER_FLAG IN (0, 1)
 	AND ORDERS.TEMPLATE_ORDER_ID = 0
 	AND ORDERS.ORIG_ORDER_DT_TM BETWEEN 
-		pi_to_gmt(DATE '2016-07-01', pi_time_zone(2, @Variable('BOUSER'))) 
-		AND pi_to_gmt(DATE '2019-07-01', pi_time_zone(2, @Variable('BOUSER')))
+		pi_to_gmt(
+			TO_DATE(
+				@Prompt('Enter begin date', 'D', , mono, free, persistent, {'07/01/2017 00:00:00'}, User:80),
+				pi_get_dm_info_char_gen('Date Format Mask|FT','PI EXP|Systems Configuration|Date Format Mask')
+			),
+			'America/Chicago'
+		)
+		AND pi_to_gmt(
+			TO_DATE(
+				@Prompt('Enter end date', 'D', , mono, free, persistent, {'07/01/2020 00:00:00'}, User:81),
+				pi_get_dm_info_char_gen('Date Format Mask|FT','PI EXP|Systems Configuration|Date Format Mask')
+			),
+			'America/Chicago'
+		)
 	AND (
 		ORDERS.ENCNTR_ID = ENCNTR_LOC_HIST.ENCNTR_ID
 		AND ENCNTR_LOC_HIST.ACTIVE_IND = 1
