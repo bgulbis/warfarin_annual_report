@@ -5,3 +5,9 @@
 *.pptx
 *.csv
 *.csv.gz
+*.json
+*.xlsx
+*.tmp
+*.docx
+*.html
+*.log
