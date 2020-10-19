@@ -2,7 +2,6 @@
 title: "Warfarin Dosing Service Analysis FY2019"
 subtitle: "Exploratory Data Analysis"
 author: "Brian Gulbis, PharmD, BCPS"
-date: "9/16/2019"
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
 output: 
   html_document:
