@@ -377,24 +377,30 @@ pct_warf_use <- df_cnt %>%
 
 # Summary
 
-The Department of Pharmacy's Warfarin Dosing Service was consulted on `r round(n_consult_cur_fy$pct, 0)`% of warfarin patients in fiscal year 2020 (FY20). The service lines with the highest utilization were Internal Medicine, CV Surgery, and Neurology. Patients managed by the pharmacy service were more likely to reach the target therapeutic range compared with traditional provider management of warfarin. 
+The Department of Pharmacy's Warfarin Dosing Service was consulted on `r round(n_consult_cur_fy$pct, 0)`% of warfarin patients in fiscal year 2020 (FY20). The service lines with the highest utilization were Cardiology, Internal Medicine, CV Surgery, and Neurology. Patients managed by the pharmacy service were more likely to reach the target therapeutic range compared with traditional provider management of warfarin. 
 
 # Warfarin Utilization
 
 There was a `r round(pct_warf_use$pct_chg, 0)`% decrease in the total number of warfarin doses administered in FY20 compared with FY18. This was due to a combination of reduced volume due to COVID-19, as well as a continued increase in the use of Direct Oral Anticoagulants (DOACs), such as apixaban and rivaroxaban (see Figure 1). The Pharmacy Dosing Service was consulted on `r round(n_consult_cur_fy$pct, 0)`% of warfarin patients in FY20.
 
-```{r, fig.cap="The number of monthly doses of warfarin, number of monthly warfarin doses managed by the Pharmacy Dosing Service, and the number of monthly doses of direct oral anticoagulants (DOACs) over the past three fiscal years."}
+```{r, fig.cap="The number of monthly doses of warfarin managed by the Pharmacy Dosing Service, by traditional providers, and the number of monthly doses of direct oral anticoagulants (DOACs) over the past three fiscal years."}
 
 df_warf_month %>%
     inner_join(df_consult_month, by = c("med_month" = "task_month")) %>%
     inner_join(df_doac_month, by = "med_month") %>%
+    mutate(traditional = warfarin - consults) %>%
+    select(-warfarin) %>%
     gather(key, value, -med_month) %>%
+    mutate(
+        across(key, as_factor),
+        across(key, fct_rev)
+    ) %>%
     ggplot(aes(x = med_month, y = value, color = key, size = key)) +
     annotate(
         "text", 
         x = mdy("4/15/2017"), # 7/15
-        y = 1104, # 1175
-        label = "All\nwarfarin", 
+        y = 525, # 1175
+        label = "Providers", 
         family = "serif", 
         color = "#4daf4a",
         size = 2.5
@@ -402,8 +408,8 @@ df_warf_month %>%
     annotate(
         "text", 
         x = mdy("4/15/2017"), # 7/20
-        y = 650, # 715
-        label = "Pharmacy\nconsults", 
+        y = 625, # 715
+        label = "Pharmacy", 
         family = "serif", 
         color = "#377eb8",
         size = 2.5
@@ -411,7 +417,7 @@ df_warf_month %>%
     annotate(
         "text", 
         x = mdy("4/15/2017"), # 7/1
-        y = 478, # 500
+        y = 450, # 500
         label = "DOACs", 
         family = "serif", 
         color = "#ff7f00",
@@ -421,8 +427,8 @@ df_warf_month %>%
     ggtitle("Monthly doses of oral anticoagulants") +
     scale_x_date(NULL, date_breaks = "6 months", date_labels = "%b %y", limits = c(as.Date("2017-03-15"), NA)) +
     scale_y_continuous("Doses") +
-    scale_color_manual(NULL, values = c("#377eb8", "#ff7f00", "#4daf4a")) + # c("black", "#4daf4a", "#377eb8")
-    scale_size_manual(NULL, values = c(1, 0.5, 0.5)) +
+    scale_color_manual(NULL, values = c("#4daf4a", "#ff7f00", "#377eb8")) + # c("#377eb8", "#ff7f00", "#4daf4a")
+    scale_size_manual(NULL, values = c(0.5, 0.5, 1)) +
     coord_cartesian(ylim = c(0, 1250)) +
     theme_bg(base_family = "serif") +
     theme(
@@ -434,7 +440,7 @@ df_warf_month %>%
 
 ```
 
-The highest volume of warfarin use occured in patients on the Cardiology service line, followed by Internal Medicine, CV Surgery, and Neurology (see Figure 2). The Cardiology service line primarily utilizes traditional provider management of warfarin, although Clinical Pharmacists and Clinical Pharmacist-Specialists participate in the dosing of warfarin on these patients outside of a formal consult to the Pharmacy Dosing Service.
+The highest volume of warfarin use occurred in patients on the Cardiology service line, followed by Internal Medicine, CV Surgery, and Neurology (see Figure 2). The Cardiology service line primarily utilizes traditional provider management of warfarin, although Clinical Pharmacists and Clinical Pharmacist-Specialists participate in the dosing of warfarin on these patients outside of a formal consult to the Pharmacy Dosing Service.
 
 ```{r, fig.cap="The number of warfarin patients by the primary service at the time of warfarin initiation. The Cardiology service line remains the largest user of warfarin. The Pharmacy Dosing Service manages the majority of warfarin dosing for patients on most other service lines."}
 df_warf_ord %>%
@@ -449,7 +455,7 @@ df_warf_ord %>%
         )
     ) %>%
     mutate_at("med_service_order", fct_infreq) %>%
-    mutate_at("med_service_order", fct_lump, n = 10) %>%
+    mutate_at("med_service_order", fct_lump, n = 7) %>%
     mutate_at("med_service_order", fct_rev) %>%
     ggplot(aes(x = med_service_order, fill = consult)) +
     geom_bar() +
@@ -471,7 +477,7 @@ df_warf_ord %>%
         legend.text = element_text(size = 8),
         legend.box.margin = margin(t = 0, b = 0, unit='cm')
     ) + 
-    guides(fill = guide_legend(override.aes = list(size = 3)))
+    guides(fill = guide_legend(override.aes = list(size = 1)))
 ```
 
 The warfarin dosing for patients with a ventricular assist device (VAD) is primarily managed by traditional provider dosing. The Pharmacy Dosing Service manages the majority of patients with all other indications for anticoagulation (see Figure 3). 
@@ -521,7 +527,7 @@ df_demog %>%
         legend.text = element_text(size = 8),
         legend.box.margin = margin(t = 0, b = 0, unit='cm')
     ) + 
-    guides(fill = guide_legend(override.aes = list(size = 3)))
+    guides(fill = guide_legend(override.aes = list(size = 1)))
 ```
 
 # Dosing and INR Response
