@@ -377,7 +377,7 @@ pct_warf_use <- df_cnt %>%
 
 # Summary
 
-The Department of Pharmacy's Warfarin Dosing Service was consulted on `r round(n_consult_cur_fy$pct, 0)`% of warfarin patients in fiscal year 2020 (FY20). The service lines with the highest utilization were Cardiology, Internal Medicine, CV Surgery, and Neurology. Patients managed by the pharmacy service were more likely to reach the target therapeutic range compared with traditional provider management of warfarin. 
+The Department of Pharmacy's Warfarin Dosing Service was consulted on `r round(n_consult_cur_fy$pct, 0)`% of warfarin patients in fiscal year 2020 (FY20). The service lines with the highest utilization were Cardiology, Internal Medicine, CV Surgery, and Neurology. Patients managed by the pharmacy service reached the target therapeutic range sooner than patients with traditional provider management of warfarin. 
 
 # Warfarin Utilization
 
@@ -482,7 +482,7 @@ df_warf_ord %>%
 
 The warfarin dosing for patients with a ventricular assist device (VAD) is primarily managed by traditional provider dosing. The Pharmacy Dosing Service manages the majority of patients with all other indications for anticoagulation (see Figure 3). 
 
-```{r, fig.cap="Indications for oral anticoagulation. The most common indication for warfarin was atrial fibrillation (A.fib), followed by ventricular assist devices (VADs), mechanical heart valves, deep vein thrombosis (DVTs), and pulmonary embolisms (PEs)."}
+```{r, fig.cap="Indications for oral anticoagulation. The most common indication for warfarin was for ventricular assist devices (VADs), followed by atrial fibrillation (A.fib), mechanical heart valves, deep vein thrombosis (DVTs), and pulmonary embolisms (PEs)."}
 df_demog %>%
     filter(fiscal_year == cur_fy) %>%
     inner_join(df_indications, by = "encounter_id") %>%
@@ -542,7 +542,7 @@ n_pts <- tidy_pts %>%
 
 Patients managed by the Pharmacy Dosing Service typically received a higher daily warfarin dose than those managed by other providers. Only patients with an INR target between 2 and 3 were included to ensure the goal therapeutic range was equivalent in both groups.
 
-```{r, fig.cap="The daily warfarin dose administered to patients in each group. Patients in the Pharmacy Dosing Service group received a higher daily warfarin dose than those in the traditional provider management group. The p-value is < 0.01 for each day of warfarin therapy."}
+```{r, fig.cap="The daily warfarin dose administered to patients in each group. Patients in the Pharmacy Dosing Service group received a higher daily warfarin dose than those in the traditional provider management group. The p-value is < 0.04 for each day of warfarin therapy."}
 p <- df_doses_inr %>%
     semi_join(tidy_pts, by = "encounter_id") %>%
     filter(
@@ -621,7 +621,7 @@ df_doses_inr %>%
 
 Despite starting with a lower baseline INR, patients managed by the Pharmacy Dosing Service had a greater rise in INR over the first 10 days of therapy, and were more likely to reach an INR around 2 on day 5 (see Figure 5). 
 
-```{r, fig.cap="The daily INR value for patients in each group over the first 10 days of warfarin therapy. There was a larger increase in the INR for patients managed by the Pharmacy Dosing Service. The p-value was < 0.05 on all days except days 5 and 6 where there was no significant difference."}
+```{r, fig.cap="The daily INR value for patients in each group over the first 10 days of warfarin therapy. There was a larger increase in the INR for patients managed by the Pharmacy Dosing Service. The p-value was < 0.05 on all days except days 5 and 10 where there was no significant difference."}
 
 p <- df_doses_inr %>%
     semi_join(tidy_pts, by = "encounter_id") %>%
@@ -875,7 +875,7 @@ chisq.test(x = df_p$consult, y = df_p$readmit)
 
 ```
 
-There were no differences in supratherapeutic INR, bleeding, need for transfusion, or need for anticoagulation reversal between the two groups (see Table 1).
+There were significantly fewer patients managed by the Pharmacy Dosing Service who were transfused with packed red blood cells (PRBC). There were no differences in supratherapeutic INR, hemoglobin drop, transfusion of fresh frozen plasma (FFP), or need for anticoagulation reversal between the two groups (see Table 1).
 
 ```{r outcomes}
 df_outcomes_pct <- df_outcomes %>%
@@ -905,7 +905,7 @@ df_outcomes_pct <- df_outcomes %>%
         pattern = c(
             "high_inr" = "High INR",
             "hgb_drop" = "Hemoglobin drop",
-            "prbc" = "Transfuse PRBC",
+            "prbc" = "Transfuse PRBC*",
             "ffp" = "Transfuse FFP",
             "reversal_med" = "Adminster reversal agent",
             "revisit" = "Unplanned return*",
@@ -927,19 +927,23 @@ df_outcomes_pct %>%
         format = "latex",
         digits = 0,
         booktabs = TRUE,
+        # escape = FALSE,
         col.names = c(
             "Outcome",
             "Pharmacy (%)",
             "Traditional (%)"
         ),
-        caption = "Outcomes and events during the first 10 days of warfarin therapy."
+        caption = "Outcomes and events during the first 10 days of warfarin therapy. Fewer patients managed by the Pharmacy Dosing Service were transfused with PRBC (p-value = 0.003). There were no significant differences in other outcomes."
     ) %>%
     footnote(
+        symbol = "p-value = 0.003",
         number = c(
-            "High INR is defined as an INR of 5 or greater after warfarin initiation.", 
-            "Hemoglobin decrease includes a drop of >/= 2 g/dL within a 48-hour period.", 
+            "High INR is an INR of $\\\\ge$ 5 after warfarin initiation.", 
+            "Hemoglobin drop is a decrease of $\\\\ge$ 2 g/dL in a 48-hour period.", 
             "Reversal medications include phytonadione, 4-factor PCC, factor VIIa, aminocaproic acid, and tranexamic acid."
         ),
+        escape = FALSE,
+        footnote_order = c("symbol", "number"),
         threeparttable = TRUE,
         general_title = "",
         fixed_small_size = TRUE
@@ -977,7 +981,7 @@ df_outcome_dispo %>%
             "Pharmacy (%)",
             "Traditional (%)"
         ),
-        caption = "Discharge disposition and unplanned return within 30 days."
+        caption = "Discharge disposition and unplanned return within 30 days. There were significant differences in the percent of patients discharged to home, as well as the percent of patients with an unplanned visit or readmission within 30 days."
     ) %>%
     pack_rows(
         "Discharge disposition*", 
@@ -996,4 +1000,4 @@ df_outcome_dispo %>%
 
 # Conclusion
 
-The Pharmacy Dosing Service continued to provide safe and effective management of warfarin for patients in fiscal year 2019. 
+The Pharmacy Dosing Service continued to provide safe and effective management of warfarin for patients in fiscal year 2020. 
