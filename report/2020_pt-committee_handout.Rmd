@@ -266,7 +266,7 @@ df_warf_duration <- data_warfarin_doses %>%
     arrange(encounter_id, med_datetime) %>%
     group_by(encounter_id, fiscal_year, med_day) %>%
     summarize_at("dose", sum, na.rm = TRUE) %>%
-    group_by(encounter_id, fiscal_year) %>%
+    group_by(encounter_id) %>%
     mutate(warf_day = difftime(med_day, first(med_day), units = "days") + 1) %>%
     mutate_at("warf_day", as.integer) %>%
     filter(warf_day <= 10) %>%
