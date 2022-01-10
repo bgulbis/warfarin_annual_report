@@ -68,7 +68,14 @@ data_doac_doses <- get_data(data_dir, "doac_doses") |>
         fiscal_year = year(med_month %m+% months(6))
     )
     
-data_labs <- get_data(data_dir, "labs")
+data_labs <- get_data(data_dir, "labs") |> 
+    mutate(
+        censor_high = str_detect(result_value, ">"),
+        censor_low = str_detect(result_value, "<"),
+        across(result_value, str_replace_all, pattern = "<|>", replacement = ""),
+        across(result_value, as.numeric)
+    )
+
 data_measures <- get_data(data_dir, "measures")
 data_reencounters <- get_data(data_dir, "reencounters")
 data_reversal_meds <- get_data(data_dir, "reversal_meds")
@@ -280,9 +287,10 @@ df_inr_daily <- df_warf_duration |>
         lab_day = floor_date(lab_datetime, unit = "days"),
         lab_month = floor_date(lab_datetime, unit = "month"),
         warf_day = difftime(lab_day, warfarin_start, units = "days") + 1,
-        fiscal_year = year(lab_month %m+% months(6))
+        fiscal_year = year(lab_month %m+% months(6)),
+        across(warf_day, as.integer)
     ) |>
-    mutate_at("warf_day", as.integer) |>
+    # mutate_at("warf_day", as.integer) |>
     filter(
         lab_day >= warfarin_start,
         lab_day <= warfarin_stop,
@@ -377,13 +385,15 @@ pct_warf_use <- df_cnt |>
 
 # Summary
 
-The Department of Pharmacy's Warfarin Dosing Service was consulted on `r round(n_consult_cur_fy$pct, 0)`% of warfarin patients in fiscal year 2021 (FY21). The service lines with the highest utilization were Cardiology, Internal Medicine, CV Surgery, and Neurology. Patients managed by the pharmacy service reached the target therapeutic range sooner than patients with traditional provider management of warfarin. 
+The Department of Pharmacy's Warfarin Dosing Service was consulted on `r round(n_consult_cur_fy$pct, 0)`% of warfarin patients in fiscal year `r cur_fy` (FY21). The service lines with the highest utilization were Cardiology, Internal Medicine, CV Surgery, and Neurology. Patients managed by the pharmacy service reached the target therapeutic range sooner than patients with traditional provider management of warfarin. 
 
 # Warfarin Utilization
 
 There was a `r round(pct_warf_use$pct_chg, 0)`% decrease in the total number of warfarin doses administered in FY21 compared with FY19. This was due to a combination of reduced volume due to COVID-19, as well as a continued increase in the use of Direct Oral Anticoagulants (DOACs), such as apixaban and rivaroxaban (see Figure 1). The Pharmacy Dosing Service was consulted on `r round(n_consult_cur_fy$pct, 0)`% of warfarin patients in FY21.
 
 ```{r, fig.cap="The number of monthly doses of warfarin managed by the Pharmacy Dosing Service, by traditional providers, and the number of monthly doses of direct oral anticoagulants (DOACs) over the past three fiscal years."}
+
+label_x_pos <- mdy(paste("4/15", cur_fy - 3, sep = "/"))
 
 df_warf_month |>
     inner_join(df_consult_month, by = c("med_month" = "task_month")) |>
@@ -398,7 +408,7 @@ df_warf_month |>
     ggplot(aes(x = med_month, y = value, color = key, size = key)) +
     annotate(
         "text", 
-        x = mdy("4/15/2018"), # 7/15
+        x = label_x_pos, # 7/15
         y = 525, # 1175
         label = "Providers", 
         family = "serif", 
@@ -407,7 +417,7 @@ df_warf_month |>
     ) +
     annotate(
         "text", 
-        x = mdy("4/15/2018"), # 7/20
+        x = label_x_pos, # 7/20
         y = 625, # 715
         label = "Pharmacy", 
         family = "serif", 
@@ -416,7 +426,7 @@ df_warf_month |>
     ) +
     annotate(
         "text", 
-        x = mdy("4/15/2018"), # 7/1
+        x = label_x_pos, # 7/1
         y = 450, # 500
         label = "DOACs", 
         family = "serif", 
@@ -425,7 +435,7 @@ df_warf_month |>
     ) +
     geom_line() +
     ggtitle("Monthly doses of oral anticoagulants") +
-    scale_x_date(NULL, date_breaks = "6 months", date_labels = "%b %y", limits = c(as.Date("2018-03-15"), NA)) +
+    scale_x_date(NULL, date_breaks = "6 months", date_labels = "%b %y", limits = c(as.Date(paste(cur_fy - 3, "03-15", sep = "-")), NA)) +
     scale_y_continuous("Doses") +
     scale_color_manual(NULL, values = c("#4daf4a", "#ff7f00", "#377eb8")) + # c("#377eb8", "#ff7f00", "#4daf4a")
     scale_size_manual(NULL, values = c(0.5, 0.5, 1)) +
@@ -869,7 +879,7 @@ chisq.test(x = df_p$consult, y = df_p$high_inr)
 chisq.test(x = df_p$consult, y = df_p$hgb_drop)
 chisq.test(x = df_p$consult, y = df_p$prbc)
 chisq.test(x = df_p$consult, y = df_p$ffp)
-chisq.test(x = df_p$consult, y = df_p$reversal_med)
+# chisq.test(x = df_p$consult, y = df_p$reversal_med)
 chisq.test(x = df_p$consult, y = df_p$revisit)
 chisq.test(x = df_p$consult, y = df_p$readmit)
 
@@ -887,7 +897,7 @@ df_outcomes_pct <- df_outcomes |>
             "hgb_drop", 
             "prbc",
             "ffp",
-            "reversal_med",
+            # "reversal_med",
             "revisit",
             "readmit"
         ),
@@ -907,7 +917,7 @@ df_outcomes_pct <- df_outcomes |>
             "hgb_drop" = "Hemoglobin drop",
             "prbc" = "Transfuse PRBC*",
             "ffp" = "Transfuse FFP",
-            "reversal_med" = "Adminster reversal agent",
+            # "reversal_med" = "Adminster reversal agent",
             "revisit" = "Unplanned return*",
             "readmit" = "Hospital readmission*"
         )
@@ -1000,4 +1010,4 @@ df_outcome_dispo |>
 
 # Conclusion
 
-The Pharmacy Dosing Service continued to provide safe and effective management of warfarin for patients in fiscal year 2020. 
+The Pharmacy Dosing Service continued to provide safe and effective management of warfarin for patients in fiscal year `r cur_fy`. 
