@@ -42,18 +42,18 @@ find_ind <- function(x, reg) {
 
 data_blood <- get_data(data_dir, "blood_products") 
 
-data_consult_orders <- get_data(data_dir, "consult_orders") %>%
-    filter(str_detect(nurse_unit, "^HH|^HVI")) %>%
+data_consult_orders <- get_data(data_dir, "consult_orders") |>
+    filter(str_detect(nurse_unit, "^HH|^HVI")) |>
     mutate(
         order_month = floor_date(order_datetime, unit = "month"),
         fiscal_year = year(order_month %m+% months(6))
     )
     
-data_consult_tasks <- get_data(data_dir, "consult_tasks") %>%
+data_consult_tasks <- get_data(data_dir, "consult_tasks") |>
     filter(
         str_detect(nurse_unit, "^HH|^HVI"),
         task_date < ymd(paste(cur_fy, "07-01", sep = "-"))
-    ) %>%
+    ) |>
     mutate(
         task_month = floor_date(task_date, unit = "month"),
         fiscal_year = year(task_month %m+% months(6))
@@ -61,8 +61,8 @@ data_consult_tasks <- get_data(data_dir, "consult_tasks") %>%
 
 data_demographics <- get_data(data_dir, "demographics")
 
-data_doac_doses <- get_data(data_dir, "doac_doses") %>%
-    filter(str_detect(nurse_unit, "^HH|^HVI")) %>%
+data_doac_doses <- get_data(data_dir, "doac_doses") |>
+    filter(str_detect(nurse_unit, "^HH|^HVI")) |>
     mutate(
         med_month = floor_date(med_datetime, unit = "month"),
         fiscal_year = year(med_month %m+% months(6))
@@ -74,8 +74,8 @@ data_reencounters <- get_data(data_dir, "reencounters")
 data_reversal_meds <- get_data(data_dir, "reversal_meds")
 data_warfarin_details <- get_data(data_dir, "warfarin_details")
 
-data_warfarin_doses <- get_data(data_dir, "warfarin_doses") %>%
-    filter(str_detect(nurse_unit, "^HH|^HVI")) %>%
+data_warfarin_doses <- get_data(data_dir, "warfarin_doses") |>
+    filter(str_detect(nurse_unit, "^HH|^HVI")) |>
     mutate(
         med_day = floor_date(med_datetime, unit = "day"),
         med_month = floor_date(med_datetime, unit = "month"),
@@ -85,8 +85,8 @@ data_warfarin_doses <- get_data(data_dir, "warfarin_doses") %>%
 data_warfarin_home_meds <- get_data(data_dir, "warfarin_home_meds")
 data_warfarin_orders <- get_data(data_dir, "warfarin_orders")
 
-df_indications <- data_warfarin_details %>%
-    filter(detail == "Warfarin Indication") %>%
+df_indications <- data_warfarin_details |>
+    filter(detail == "Warfarin Indication") |>
     mutate(
         indication = case_when(
             find_ind(
@@ -127,35 +127,35 @@ df_indications <- data_warfarin_details %>%
             ) ~ "prophylax",
             TRUE ~ "other"
         )
-    ) %>%
+    ) |>
     distinct(encounter_id, indication) 
-    # mutate(value = TRUE) %>%
+    # mutate(value = TRUE) |>
     # spread(indication, value, fill = FALSE)
         
-df_inr_goal <- data_warfarin_details %>%
+df_inr_goal <- data_warfarin_details |>
     filter(
         detail == "INR Range",
         result_value != ""
-    ) %>%
-    mutate(inr_range = result_value) %>%
+    ) |>
+    mutate(inr_range = result_value) |>
     mutate_at(
         "inr_range", 
         str_replace_all, 
         pattern = " |", 
         replacement = ""
-    ) %>%
+    ) |>
     mutate_at(
         "inr_range", 
         str_replace_all, 
         pattern = regex("to|--|/|=|,|-\\.", ignore_case = TRUE), 
         replacement = "-"
-    ) %>%
+    ) |>
      mutate_at(
         "inr_range",
         str_replace_all,
         pattern = ">1.5-<2.5",
         replacement = "1.5-2.5"
-    ) %>%
+    ) |>
     mutate_at(
         "inr_range",
         str_replace_all,
@@ -176,31 +176,31 @@ df_inr_goal <- data_warfarin_details %>%
             ),
             ignore_case = TRUE
         )
-    ) %>%
+    ) |>
     extract(
         inr_range,
         c("goal_low", "goal_high"), 
         regex = "([0-9\\.]+ ?)-( ?[0-9\\.]+)",
         remove = FALSE, 
         convert = TRUE
-    ) %>%
+    ) |>
     filter(
         !is.na(goal_low),
         goal_low < goal_high
-    ) %>%
-    mutate_at(c("goal_low", "goal_high"), as.numeric) %>%
+    ) |>
+    mutate_at(c("goal_low", "goal_high"), as.numeric) |>
     select(-result_value, -inr_range)
 
 ```
 
 ```{r tidying}
-df_consult_pts <- data_consult_orders %>%
-    arrange(encounter_id, order_datetime) %>%
-    distinct(encounter_id, .keep_all = TRUE) %>%
+df_consult_pts <- data_consult_orders |>
+    arrange(encounter_id, order_datetime) |>
+    distinct(encounter_id, .keep_all = TRUE) |>
     mutate(
         consult = TRUE,
         consult_date = floor_date(order_datetime, unit = "day")
-    ) %>%
+    ) |>
     select(
         encounter_id, 
         consult_date,
@@ -209,10 +209,10 @@ df_consult_pts <- data_consult_orders %>%
         consult
     )
 
-df_warf_start <- data_warfarin_doses %>%
-    arrange(encounter_id, med_datetime) %>%
-    distinct(encounter_id, .keep_all = TRUE) %>%
-    mutate(warfarin_start = floor_date(med_datetime, unit = "day")) %>%
+df_warf_start <- data_warfarin_doses |>
+    arrange(encounter_id, med_datetime) |>
+    distinct(encounter_id, .keep_all = TRUE) |>
+    mutate(warfarin_start = floor_date(med_datetime, unit = "day")) |>
     select(
         encounter_id,
         med_month,
@@ -221,10 +221,10 @@ df_warf_start <- data_warfarin_doses %>%
         fiscal_year
     )
 
-df_demog <- data_demographics %>%
-    inner_join(df_warf_start, by = "encounter_id") %>%
-    left_join(df_consult_pts, by = "encounter_id") %>%
-    mutate_at("consult", list(~coalesce(., FALSE))) %>%
+df_demog <- data_demographics |>
+    inner_join(df_warf_start, by = "encounter_id") |>
+    left_join(df_consult_pts, by = "encounter_id") |>
+    mutate_at("consult", list(~coalesce(., FALSE))) |>
     mutate(
         consult_day = difftime(
             consult_date, 
@@ -233,144 +233,144 @@ df_demog <- data_demographics %>%
         )
     )
 
-df_warf_month <- data_warfarin_doses %>%
-    count(med_month, name = "warfarin") %>%
+df_warf_month <- data_warfarin_doses |>
+    count(med_month, name = "warfarin") |>
     mutate_at("med_month", as_date)
 
-df_consult_month <- data_consult_tasks %>%
+df_consult_month <- data_consult_tasks |>
      count(task_month, name = "consults")
 
-df_doac_month <- data_doac_doses %>%
-    mutate(med_day = floor_date(med_datetime, unit="day")) %>%
-    distinct(encounter_id, medication, med_month, med_day) %>%
-    count(med_month, name = "doac") %>%
+df_doac_month <- data_doac_doses |>
+    mutate(med_day = floor_date(med_datetime, unit="day")) |>
+    distinct(encounter_id, medication, med_month, med_day) |>
+    count(med_month, name = "doac") |>
     mutate_at("med_month", as_date)
 
-df_warf_ord <- data_warfarin_orders %>%
+df_warf_ord <- data_warfarin_orders |>
     rename(
         nurse_unit_order = nurse_unit,
         med_service_order = med_service
-    ) %>%
-    arrange(encounter_id, order_datetime) %>%
-    mutate(order_date = floor_date(order_datetime, unit = "day")) %>%
-    inner_join(df_warf_start, by = c("encounter_id", "order_date" = "warfarin_start")) %>%
-    left_join(df_consult_pts, by = "encounter_id") %>%
+    ) |>
+    arrange(encounter_id, order_datetime) |>
+    mutate(order_date = floor_date(order_datetime, unit = "day")) |>
+    inner_join(df_warf_start, by = c("encounter_id", "order_date" = "warfarin_start")) |>
+    left_join(df_consult_pts, by = "encounter_id") |>
     mutate_at("consult", list(~coalesce(., FALSE)))
 
-df_warf_duration <- data_warfarin_doses %>%
-    arrange(encounter_id, med_datetime) %>%
-    group_by(encounter_id) %>%
+df_warf_duration <- data_warfarin_doses |>
+    arrange(encounter_id, med_datetime) |>
+    group_by(encounter_id) |>
     summarize_at("med_day", list(warfarin_start = first, warfarin_stop = last))
 
- df_doses_daily <- data_warfarin_doses %>%
-    arrange(encounter_id, med_datetime) %>%
-    group_by(encounter_id, fiscal_year, med_day) %>%
-    summarize_at("dose", sum, na.rm = TRUE) %>%
-    group_by(encounter_id) %>%
-    mutate(warf_day = difftime(med_day, first(med_day), units = "days") + 1) %>%
-    mutate_at("warf_day", as.integer) %>%
-    filter(warf_day <= 10) %>%
-    ungroup() %>%
+ df_doses_daily <- data_warfarin_doses |>
+    arrange(encounter_id, med_datetime) |>
+    group_by(encounter_id, fiscal_year, med_day) |>
+    summarize_at("dose", sum, na.rm = TRUE) |>
+    group_by(encounter_id) |>
+    mutate(warf_day = difftime(med_day, first(med_day), units = "days") + 1) |>
+    mutate_at("warf_day", as.integer) |>
+    filter(warf_day <= 10) |>
+    ungroup() |>
     select(encounter_id, fiscal_year, warf_day, dose) 
 
-df_inr_daily <- df_warf_duration %>%
-    inner_join(data_labs, by = "encounter_id") %>%
-    filter(lab == "INR") %>%
+df_inr_daily <- df_warf_duration |>
+    inner_join(data_labs, by = "encounter_id") |>
+    filter(lab == "INR") |>
     mutate(
         lab_day = floor_date(lab_datetime, unit = "days"),
         lab_month = floor_date(lab_datetime, unit = "month"),
         warf_day = difftime(lab_day, warfarin_start, units = "days") + 1,
         fiscal_year = year(lab_month %m+% months(6))
-    ) %>%
-    mutate_at("warf_day", as.integer) %>%
+    ) |>
+    mutate_at("warf_day", as.integer) |>
     filter(
         lab_day >= warfarin_start,
         lab_day <= warfarin_stop,
         warf_day <= 10
-    ) %>%
-    group_by(encounter_id, fiscal_year, lab_day, warf_day) %>%
-    summarize_at("result_value", max, na.rm = TRUE) %>%
-    ungroup() %>%
+    ) |>
+    group_by(encounter_id, fiscal_year, lab_day, warf_day) |>
+    summarize_at("result_value", max, na.rm = TRUE) |>
+    ungroup() |>
     select(encounter_id, fiscal_year, warf_day, inr = result_value) 
 
-df_consult_daily <- df_warf_duration %>%
-    mutate_at(c("warfarin_start", "warfarin_stop"), as_date) %>%
-    inner_join(data_consult_tasks, by = "encounter_id") %>%
+df_consult_daily <- df_warf_duration |>
+    mutate_at(c("warfarin_start", "warfarin_stop"), as_date) |>
+    inner_join(data_consult_tasks, by = "encounter_id") |>
     mutate(
         warf_day = difftime(task_date, warfarin_start, units = "days") + 1,
         task_month = floor_date(task_date, unit = "month"),
         fiscal_year = year(task_month %m+% months(6))
-    ) %>%
-    mutate_at("warf_day", as.integer) %>%
+    ) |>
+    mutate_at("warf_day", as.integer) |>
     filter(
         task_date >= warfarin_start,
         task_date <= warfarin_stop,
         warf_day <= 10
-    ) %>%
-    select(encounter_id, fiscal_year, warf_day) %>%
+    ) |>
+    select(encounter_id, fiscal_year, warf_day) |>
     mutate(consult = TRUE)
 
-df_doses_inr <- df_doses_daily %>%
+df_doses_inr <- df_doses_daily |>
     full_join(
         df_inr_daily, 
         by = c("encounter_id", "fiscal_year", "warf_day")
-    ) %>%
+    ) |>
     full_join(
         df_consult_daily,
         by = c("encounter_id", "fiscal_year", "warf_day")
-    ) %>%
+    ) |>
     arrange(encounter_id, warf_day)
 
-df_group <- df_doses_inr %>%
-    filter(warf_day < 3) %>%
-    group_by(encounter_id, fiscal_year) %>%
-    summarize_at("consult", sum, na.rm = TRUE) %>%
+df_group <- df_doses_inr |>
+    filter(warf_day < 3) |>
+    group_by(encounter_id, fiscal_year) |>
+    summarize_at("consult", sum, na.rm = TRUE) |>
     mutate_at("consult", list(~. > 0))
 
-df_doses_cnt <- df_doses_inr %>%
-    group_by(encounter_id, fiscal_year) %>%
+df_doses_cnt <- df_doses_inr |>
+    group_by(encounter_id, fiscal_year) |>
     summarize(
         doses_n = sum(!is.na(dose), na.rm = TRUE)
     )
 
-df_doses_3 <- df_doses_cnt %>%
-    inner_join(df_group, by = c("encounter_id", "fiscal_year")) %>%
+df_doses_3 <- df_doses_cnt |>
+    inner_join(df_group, by = c("encounter_id", "fiscal_year")) |>
     filter(
         doses_n >= 3,
         fiscal_year == cur_fy
     )
   
-df_goal_eq2_3 <- df_inr_goal %>%
-    semi_join(df_doses_3, by = "encounter_id") %>%
+df_goal_eq2_3 <- df_inr_goal |>
+    semi_join(df_doses_3, by = "encounter_id") |>
     filter(
         goal_low == 2,
         goal_high == 3
-    ) %>%
-    distinct(encounter_id) %>%
+    ) |>
+    distinct(encounter_id) |>
     mutate(goal2_3 = TRUE)
 
-tidy_pts <- df_doses_3 %>%
-    left_join(df_goal_eq2_3, by = "encounter_id") %>%
-    mutate_at("goal2_3", list(~coalesce(., FALSE))) %>%
+tidy_pts <- df_doses_3 |>
+    left_join(df_goal_eq2_3, by = "encounter_id") |>
+    mutate_at("goal2_3", list(~coalesce(., FALSE))) |>
     ungroup()
 
 ```
 
 ```{r pct_pts}
-df_cnt <- df_demog %>%
-    add_count(fiscal_year, name = "n_fy") %>%
-    count(fiscal_year, n_fy, consult) %>%
+df_cnt <- df_demog |>
+    add_count(fiscal_year, name = "n_fy") |>
+    count(fiscal_year, n_fy, consult) |>
     mutate(pct = (n / n_fy) * 100)
 
-n_consult_cur_fy <- df_cnt %>%
+n_consult_cur_fy <- df_cnt |>
     filter(
         fiscal_year == cur_fy,
         consult
     )
 
-pct_warf_use <- df_cnt %>%
-    distinct(fiscal_year, n_fy) %>%
-    pivot_wider(names_from = fiscal_year, values_from = n_fy) %>%
+pct_warf_use <- df_cnt |>
+    distinct(fiscal_year, n_fy) |>
+    pivot_wider(names_from = fiscal_year, values_from = n_fy) |>
     mutate(pct_chg = (`2019` - `2021`) / `2019` * 100)
 ```
 
@@ -385,16 +385,16 @@ There was a `r round(pct_warf_use$pct_chg, 0)`% decrease in the total number of 
 
 ```{r, fig.cap="The number of monthly doses of warfarin managed by the Pharmacy Dosing Service, by traditional providers, and the number of monthly doses of direct oral anticoagulants (DOACs) over the past three fiscal years."}
 
-df_warf_month %>%
-    inner_join(df_consult_month, by = c("med_month" = "task_month")) %>%
-    inner_join(df_doac_month, by = "med_month") %>%
-    mutate(traditional = warfarin - consults) %>%
-    select(-warfarin) %>%
-    gather(key, value, -med_month) %>%
+df_warf_month |>
+    inner_join(df_consult_month, by = c("med_month" = "task_month")) |>
+    inner_join(df_doac_month, by = "med_month") |>
+    mutate(traditional = warfarin - consults) |>
+    select(-warfarin) |>
+    gather(key, value, -med_month) |>
     mutate(
         across(key, as_factor),
         across(key, fct_rev)
-    ) %>%
+    ) |>
     ggplot(aes(x = med_month, y = value, color = key, size = key)) +
     annotate(
         "text", 
@@ -443,8 +443,8 @@ df_warf_month %>%
 The highest volume of warfarin use occurred in patients on the Cardiology service line, followed by Internal Medicine, CV Surgery, and Neurology (see Figure 2). The Cardiology service line primarily utilizes traditional provider management of warfarin, although Clinical Pharmacists and Clinical Pharmacist-Specialists participate in the dosing of warfarin on these patients outside of a formal consult to the Pharmacy Dosing Service.
 
 ```{r, fig.cap="The number of warfarin patients by the primary service at the time of warfarin initiation. The Cardiology service line remains the largest user of warfarin. The Pharmacy Dosing Service manages the majority of warfarin dosing for patients on most other service lines."}
-df_warf_ord %>%
-    filter(fiscal_year == cur_fy) %>%
+df_warf_ord |>
+    filter(fiscal_year == cur_fy) |>
     mutate_at(
         "med_service_order",
         str_replace_all,
@@ -453,10 +453,10 @@ df_warf_ord %>%
             "Therapy - Phys/Occ/Speech/Cardiac" = "Rehab",
             "Pulmonology/Respiratory Therapy" = "Pulmonary"
         )
-    ) %>%
-    mutate_at("med_service_order", fct_infreq) %>%
-    mutate_at("med_service_order", fct_lump, n = 7) %>%
-    mutate_at("med_service_order", fct_rev) %>%
+    ) |>
+    mutate_at("med_service_order", fct_infreq) |>
+    mutate_at("med_service_order", fct_lump, n = 7) |>
+    mutate_at("med_service_order", fct_rev) |>
     ggplot(aes(x = med_service_order, fill = consult)) +
     geom_bar() +
     ggtitle("Warfarin utilization by primary service") +
@@ -483,9 +483,9 @@ df_warf_ord %>%
 The warfarin dosing for patients with a ventricular assist device (VAD) is primarily managed by traditional provider dosing. The Pharmacy Dosing Service manages the majority of patients with all other indications for anticoagulation (see Figure 3). 
 
 ```{r, fig.cap="Indications for oral anticoagulation. The most common indication for warfarin was for ventricular assist devices (VADs), followed by atrial fibrillation (A.fib), mechanical heart valves, deep vein thrombosis (DVTs), and pulmonary embolisms (PEs)."}
-df_demog %>%
-    filter(fiscal_year == cur_fy) %>%
-    inner_join(df_indications, by = "encounter_id") %>%
+df_demog |>
+    filter(fiscal_year == cur_fy) |>
+    inner_join(df_indications, by = "encounter_id") |>
     mutate_at(
         "indication",
         str_replace_all,
@@ -500,13 +500,13 @@ df_demog %>%
             "stroke" = "Stroke",
             "other" = "Other"
         )
-    ) %>% 
-    mutate_at("indication", fct_infreq) %>%
-    mutate_at("indication", fct_rev) %>%
-    # mutate_at("fiscal_year", as_factor) %>%
-    # add_count(consult, name = "n_grp") %>%
-    # count(consult, n_grp, indication) %>%
-    # mutate(pct = n / n_grp) %>%
+    ) |> 
+    mutate_at("indication", fct_infreq) |>
+    mutate_at("indication", fct_rev) |>
+    # mutate_at("fiscal_year", as_factor) |>
+    # add_count(consult, name = "n_grp") |>
+    # count(consult, n_grp, indication) |>
+    # mutate(pct = n / n_grp) |>
     ggplot(aes(x = indication, fill = consult)) +
     geom_bar() +
     ggtitle("Warfarin indications") +
@@ -533,9 +533,9 @@ df_demog %>%
 # Dosing and INR Response
 
 ```{r n_pts}
-n_pts <- tidy_pts %>%
-    count(consult) %>%
-    mutate_at("consult", list(~if_else(., "Pharmacy", "Traditional"))) %>%
+n_pts <- tidy_pts |>
+    count(consult) |>
+    mutate_at("consult", list(~if_else(., "Pharmacy", "Traditional"))) |>
     pivot_wider(names_from = consult, values_from = n)
 
 ```
@@ -543,24 +543,24 @@ n_pts <- tidy_pts %>%
 Patients managed by the Pharmacy Dosing Service typically received a higher daily warfarin dose than those managed by other providers. Only patients with an INR target between 2 and 3 were included to ensure the goal therapeutic range was equivalent in both groups.
 
 ```{r, fig.cap="The daily warfarin dose administered to patients in each group. Patients in the Pharmacy Dosing Service group received a higher daily warfarin dose than those in the traditional provider management group. The p-value is < 0.04 for each day of warfarin therapy."}
-p <- df_doses_inr %>%
-    semi_join(tidy_pts, by = "encounter_id") %>%
+p <- df_doses_inr |>
+    semi_join(tidy_pts, by = "encounter_id") |>
     filter(
         warf_day <= 10,
         fiscal_year == cur_fy
-    ) %>%
-    mutate_at("consult", list(~coalesce(., FALSE))) %>%
-    group_by(warf_day) %>%
-    do(tidy(wilcox.test(dose ~ consult, data = .))) %>%
+    ) |>
+    mutate_at("consult", list(~coalesce(., FALSE))) |>
+    group_by(warf_day) |>
+    do(tidy(wilcox.test(dose ~ consult, data = .))) |>
     mutate_at("p.value", round, digits = 3)
 
-df_doses_inr %>%
-    semi_join(tidy_pts, by = "encounter_id") %>%
+df_doses_inr |>
+    semi_join(tidy_pts, by = "encounter_id") |>
     filter(
         warf_day <= 10,
         fiscal_year == cur_fy
-    ) %>%
-    mutate_at("consult", list(~coalesce(., FALSE))) %>%
+    ) |>
+    mutate_at("consult", list(~coalesce(., FALSE))) |>
     ggplot(aes(x = warf_day, y = dose, color = consult)) +
     annotate(
         "text", 
@@ -598,7 +598,7 @@ df_doses_inr %>%
         axis.text = element_text(size = 8)
     )
   
-    # mutate_at("warf_day", as_factor) %>%
+    # mutate_at("warf_day", as_factor) |>
     # ggplot(aes(x = warf_day, y = dose, fill = consult, color = consult)) +
     # geom_boxplot(outlier.shape = NA) +
     # xlab("Day of therapy") +
@@ -623,29 +623,29 @@ Despite starting with a lower baseline INR, patients managed by the Pharmacy Dos
 
 ```{r, fig.cap="The daily INR value for patients in each group over the first 10 days of warfarin therapy. There was a larger increase in the INR for patients managed by the Pharmacy Dosing Service. The p-value was < 0.05 on all days except days 5 and 10 where there was no significant difference."}
 
-p <- df_doses_inr %>%
-    semi_join(tidy_pts, by = "encounter_id") %>%
-    # semi_join(df_goal_eq2_3, by = "encounter_id") %>%
+p <- df_doses_inr |>
+    semi_join(tidy_pts, by = "encounter_id") |>
+    # semi_join(df_goal_eq2_3, by = "encounter_id") |>
     filter(
         # warf_day <= 7
         fiscal_year == cur_fy,
         !is.na(inr)
-    ) %>%
-    mutate_at("consult", list(~coalesce(., FALSE))) %>%
-    mutate_at("warf_day", round, digits = 0) %>%
-    group_by(warf_day) %>%
-    do(tidy(wilcox.test(inr ~ consult, data = .))) %>%
+    ) |>
+    mutate_at("consult", list(~coalesce(., FALSE))) |>
+    mutate_at("warf_day", round, digits = 0) |>
+    group_by(warf_day) |>
+    do(tidy(wilcox.test(inr ~ consult, data = .))) |>
     mutate_at("p.value", round, digits = 3)
 
-df_doses_inr %>%
-    semi_join(tidy_pts, by = "encounter_id") %>%
-    # semi_join(df_goal_eq2_3, by = "encounter_id") %>%
+df_doses_inr |>
+    semi_join(tidy_pts, by = "encounter_id") |>
+    # semi_join(df_goal_eq2_3, by = "encounter_id") |>
     filter(
         # warf_day <= 7
         fiscal_year == cur_fy,
         !is.na(inr)
-    ) %>%
-    mutate_at("consult", list(~coalesce(., FALSE))) %>%
+    ) |>
+    mutate_at("consult", list(~coalesce(., FALSE))) |>
     ggplot(aes(x = warf_day, y = inr, color = consult)) +
     geom_hline(yintercept = 2, linetype = "dashed", color = "grey75") +
     annotate(
@@ -689,26 +689,26 @@ df_doses_inr %>%
 # Outcomes and Events
 
 ```{r high_inr}
-df_high_inr <- df_doses_inr %>%
+df_high_inr <- df_doses_inr |>
     filter(
         inr >= 5
-    ) %>%
-    distinct(encounter_id) %>%
+    ) |>
+    distinct(encounter_id) |>
     mutate(high_inr = TRUE)
 ```
 
 ```{r hgb_drop}
-df_hgb <- df_warf_duration %>%
-    inner_join(data_labs, by = "encounter_id") %>%
-    arrange(encounter_id, lab_datetime) %>%
-    filter(lab == "Hgb") %>%
+df_hgb <- df_warf_duration |>
+    inner_join(data_labs, by = "encounter_id") |>
+    arrange(encounter_id, lab_datetime) |>
+    filter(lab == "Hgb") |>
     mutate(
         lab_day = floor_date(lab_datetime, unit = "days"),
         lab_month = floor_date(lab_datetime, unit = "month"),
         warf_day = difftime(lab_day, warfarin_start, units = "days") + 1,
         fiscal_year = year(lab_month %m+% months(6))
-    ) %>%
-    mutate_at("warf_day", as.integer) %>%
+    ) |>
+    mutate_at("warf_day", as.integer) |>
     filter(
         lab_day >= warfarin_start,
         lab_day <= warfarin_stop + 1,
@@ -736,59 +736,59 @@ dt_hgb_max <- dt_hgb[
 
 dt_hgb_drop <- dt_hgb[dt_hgb_max, on=.(encounter_id, lab_datetime)]
 
-df_hgb_drop <- as_tibble(dt_hgb_drop) %>%
-    arrange(encounter_id, lab_datetime) %>%
-    mutate(hgb_chg = result_value - max_hgb) %>%
+df_hgb_drop <- as_tibble(dt_hgb_drop) |>
+    arrange(encounter_id, lab_datetime) |>
+    mutate(hgb_chg = result_value - max_hgb) |>
     filter(
         hgb_chg <= -2,
         warf_day <= 10
-    ) %>% 
-    distinct(encounter_id) %>%
+    ) |> 
+    distinct(encounter_id) |>
     mutate(hgb_drop = TRUE)
 
 ```
 
 ```{r prbc}
-df_prbc <- data_blood %>%
-    inner_join(df_warf_duration, by = "encounter_id") %>%
+df_prbc <- data_blood |>
+    inner_join(df_warf_duration, by = "encounter_id") |>
     filter(
         str_detect(product, regex("rbc", ignore_case = TRUE)),
         event_datetime >= warfarin_start,
         event_datetime <= warfarin_stop 
-    ) %>%
-    distinct(encounter_id) %>%
+    ) |>
+    distinct(encounter_id) |>
     mutate(prbc = TRUE)
 
 ```
 
 ```{r ffp}
-df_ffp <- data_blood %>%
-    inner_join(df_warf_duration, by = "encounter_id") %>%
+df_ffp <- data_blood |>
+    inner_join(df_warf_duration, by = "encounter_id") |>
     filter(
         str_detect(product, regex("ffp|plasma", ignore_case = TRUE)),
         event_datetime >= warfarin_start,
         event_datetime <= warfarin_stop 
-    ) %>%
-    distinct(encounter_id) %>%
+    ) |>
+    distinct(encounter_id) |>
     mutate(ffp = TRUE)
 
 ```
 
 ```{r reversal}
-df_reversal <- data_reversal_meds %>%
-    inner_join(df_warf_duration, by = "encounter_id") %>%
+df_reversal <- data_reversal_meds |>
+    inner_join(df_warf_duration, by = "encounter_id") |>
     filter(
         med_datetime >= warfarin_start,
         med_datetime <= warfarin_stop 
-    ) %>%
-    distinct(encounter_id) %>%
+    ) |>
+    distinct(encounter_id) |>
     mutate(reversal_med = TRUE)
 ```
 
 ```{r revisits}
-df_dispo <- df_demog %>%
-    select(encounter_id, disch_disposition) %>%
-    # inner_join(tidy_pts, by = "encounter_id") %>%
+df_dispo <- df_demog |>
+    select(encounter_id, disch_disposition) |>
+    # inner_join(tidy_pts, by = "encounter_id") |>
     mutate(
         dispo_group = case_when(
             str_detect(disch_disposition, "Hospice|Deceased") ~ "Deceased",
@@ -797,34 +797,34 @@ df_dispo <- df_demog %>%
         )
     )
 
-df_revisit <- df_dispo %>%
-    filter(dispo_group == "Home") %>%
-    inner_join(data_reencounters, by = "encounter_id") %>%
-    distinct(encounter_id) %>%
+df_revisit <- df_dispo |>
+    filter(dispo_group == "Home") |>
+    inner_join(data_reencounters, by = "encounter_id") |>
+    distinct(encounter_id) |>
     mutate(revisit = TRUE)
 ```
 
 ```{r readmits}
-df_readmit <- df_dispo %>%
-    filter(dispo_group == "Home") %>%
-    inner_join(data_reencounters, by = "encounter_id") %>%
-    filter(readmit_type == "Inpatient") %>%
-    distinct(encounter_id) %>%
+df_readmit <- df_dispo |>
+    filter(dispo_group == "Home") |>
+    inner_join(data_reencounters, by = "encounter_id") |>
+    filter(readmit_type == "Inpatient") |>
+    distinct(encounter_id) |>
     mutate(readmit = TRUE)
 ```
 
 ```{r}
-df_outcomes <- tidy_pts %>%
-    left_join(df_dispo, by = "encounter_id") %>%
-    left_join(df_high_inr, by = "encounter_id") %>%
-    left_join(df_hgb_drop, by = "encounter_id") %>%
-    left_join(df_prbc, by = "encounter_id") %>%
-    left_join(df_ffp, by = "encounter_id") %>%
-    left_join(df_reversal, by = "encounter_id") %>%
-    left_join(df_revisit, by = "encounter_id") %>%
-    left_join(df_readmit, by = "encounter_id") %>%               
-    # filter(fiscal_year == cur_fy) %>%
-    select(encounter_id, consult, dispo_group, high_inr:readmit) %>%
+df_outcomes <- tidy_pts |>
+    left_join(df_dispo, by = "encounter_id") |>
+    left_join(df_high_inr, by = "encounter_id") |>
+    left_join(df_hgb_drop, by = "encounter_id") |>
+    left_join(df_prbc, by = "encounter_id") |>
+    left_join(df_ffp, by = "encounter_id") |>
+    left_join(df_reversal, by = "encounter_id") |>
+    left_join(df_revisit, by = "encounter_id") |>
+    left_join(df_readmit, by = "encounter_id") |>               
+    # filter(fiscal_year == cur_fy) |>
+    select(encounter_id, consult, dispo_group, high_inr:readmit) |>
     mutate_at(
         c(
             "high_inr", 
@@ -834,16 +834,16 @@ df_outcomes <- tidy_pts %>%
             "reversal_med"
         ),
         list(~coalesce(., FALSE))
-    ) %>%
+    ) |>
     mutate_at(
         c("revisit", "readmit"),
         list(~if_else(dispo_group == "Home", coalesce(., FALSE), .))
-    ) %>%
-    mutate_at("consult", list(~if_else(., "Pharmacy", "Traditional"))) %>%
+    ) |>
+    mutate_at("consult", list(~if_else(., "Pharmacy", "Traditional"))) |>
     add_count(consult, name = "group_n")
 
-df_outcomes_cnt <- df_outcomes %>%
-    group_by(consult, group_n) %>%
+df_outcomes_cnt <- df_outcomes |>
+    group_by(consult, group_n) |>
     summarize_at(
         c(
             "high_inr", 
@@ -861,7 +861,7 @@ df_outcomes_cnt <- df_outcomes %>%
 ```
 
 ```{r eval=FALSE}
-df_p <- df_outcomes %>%
+df_p <- df_outcomes |>
     mutate_at(c("consult", "dispo_group"), as_factor) 
 
 chisq.test(x = df_p$consult, y = df_p$dispo_group)
@@ -878,9 +878,9 @@ chisq.test(x = df_p$consult, y = df_p$readmit)
 There were significantly fewer patients managed by the Pharmacy Dosing Service who were transfused with packed red blood cells (PRBC). There were no differences in supratherapeutic INR, hemoglobin drop, transfusion of fresh frozen plasma (FFP), or need for anticoagulation reversal between the two groups (see Table 1).
 
 ```{r outcomes}
-df_outcomes_pct <- df_outcomes %>%
-    select(-group_n) %>%
-    group_by(consult) %>%
+df_outcomes_pct <- df_outcomes |>
+    select(-group_n) |>
+    group_by(consult) |>
     summarize_at(
         c(
             "high_inr", 
@@ -893,12 +893,12 @@ df_outcomes_pct <- df_outcomes %>%
         ),
         mean,
         na.rm = TRUE
-    ) %>%
+    ) |>
     pivot_longer(
         high_inr:readmit, 
         names_to = "outcome", 
         values_to = "pct"
-    ) %>%
+    ) |>
     mutate_at(
         "outcome",
         str_replace_all,
@@ -911,18 +911,18 @@ df_outcomes_pct <- df_outcomes %>%
             "revisit" = "Unplanned return*",
             "readmit" = "Hospital readmission*"
         )
-    ) %>%
-    mutate_at("pct", list(~. * 100)) %>%
+    ) |>
+    mutate_at("pct", list(~. * 100)) |>
     pivot_wider(
         names_from = "consult",
         values_from = "pct"
     )
 
-df_outcomes_pct %>%
+df_outcomes_pct |>
     filter(
         outcome != "Unplanned return*",
         outcome != "Hospital readmission*"
-    ) %>%
+    ) |>
     knitr::kable(
         format = "latex",
         digits = 0,
@@ -934,7 +934,7 @@ df_outcomes_pct %>%
             "Traditional (%)"
         ),
         caption = "Outcomes and events during the first 10 days of warfarin therapy. Fewer patients managed by the Pharmacy Dosing Service were transfused with PRBC (p-value = 0.003). There were no significant differences in other outcomes."
-    ) %>%
+    ) |>
     footnote(
         symbol = "p-value = 0.003",
         number = c(
@@ -954,24 +954,24 @@ df_outcomes_pct %>%
 A larger percent of patients managed by the Pharmacy Dosing Service were discharged to another facility for additional care (see Table 2). Among patients who were discharged home, a larger percent of patients in the traditional provider group had an unplanned return or readmission within 30 days.
 
 ```{r dispo}
-df_outcome_dispo <- df_outcomes %>%
-    filter(!is.na(dispo_group)) %>%
-    count(consult, group_n, dispo_group) %>%
-    mutate(dispo_pct = n / group_n * 100) %>%
-    select(-group_n, -n) %>%
+df_outcome_dispo <- df_outcomes |>
+    filter(!is.na(dispo_group)) |>
+    count(consult, group_n, dispo_group) |>
+    mutate(dispo_pct = n / group_n * 100) |>
+    select(-group_n, -n) |>
     pivot_wider(
         names_from = "consult",
         values_from = "dispo_pct"
-    ) %>%
+    ) |>
     rename(outcome = dispo_group)
 
-df_outcome_revisit <- df_outcomes_pct %>%
+df_outcome_revisit <- df_outcomes_pct |>
     filter(
         outcome %in% c("Unplanned return*", "Hospital readmission*")
     )
 
-df_outcome_dispo %>%
-    bind_rows(df_outcome_revisit) %>%
+df_outcome_dispo |>
+    bind_rows(df_outcome_revisit) |>
     knitr::kable(
         format = "latex",
         digits = 0,
@@ -982,12 +982,12 @@ df_outcome_dispo %>%
             "Traditional (%)"
         ),
         caption = "Discharge disposition and unplanned return within 30 days. There were significant differences in the percent of patients discharged to home, as well as the percent of patients with an unplanned visit or readmission within 30 days."
-    ) %>%
+    ) |>
     pack_rows(
         "Discharge disposition*", 
         start_row = 1, 
         end_row = 3,
-        bold = FALSE) %>%
+        bold = FALSE) |>
     footnote(
         symbol = "p-value < 0.001",
         number = "Unplanned return includes any ER visit, observation, or inpatient stay at any MH hospital within 30 days of discharge among patients who were discharged home.",
