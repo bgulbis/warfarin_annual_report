@@ -312,6 +312,9 @@ tidy_pts <- df_doses_3 |>
     mutate(across(goal2_3, ~coalesce(., FALSE))) |>
     ungroup()
 
+
+# data sets for graphs ----------------------------------------------------
+
 df_fig1 <- df_warf_month |>
     inner_join(df_consult_month, by = c("med_month" = "task_month")) |>
     inner_join(df_doac_month, by = "med_month") |>
@@ -327,36 +330,6 @@ df_fig1 <- df_warf_month |>
         across(key, as_factor),
         across(key, fct_rev)
     )
-
-my_theme <- mschart_theme(
-    grid_major_line = fp_border(width = 0),
-    date_fmt = "[$-en-US]mmm yyyy;@",
-    main_title = fp_text(color = "#404040", font.size = 24, bold = FALSE, font.family = "Calibri"),
-    axis_title = fp_text(color = "#595959", font.size = 16, bold = FALSE, font.family = "Calibri"),
-    axis_text = fp_text(color = "#7F7F7F", font.size = 14, bold = FALSE, font.family = "Calibri"),
-    legend_position = "n",
-    legend_text = fp_text(color = "#7F7F7F", font.size = 14, bold = FALSE, font.family = "Calibri")
-)
-
-chart_colors <- c(Pharmacy = "#1F78B4", Traditional = "#A6CEE3")
-
-p_fig1 <- df_fig1 |>
-    ms_linechart(x = "med_month", y = "value", group = "key") |>
-    chart_ax_x(num_fmt = "[$-en-US]mmm yy;@") |>
-    chart_ax_y(num_fmt = "#,##0") |>
-    chart_labels(title = "Monthly doses of oral anticoagulants", ylab = "Doses") |>
-    chart_settings(style = "line") |>
-    chart_data_fill(values = c(chart_colors, DOAC = "#FDBF6F")) |>
-    chart_data_stroke(values = c(chart_colors, DOAC = "#FDBF6F")) |>
-    chart_labels_text(
-        values = list(
-            Pharmacy = fp_text(color = "#1F78B4", font.size = 14, font.family = "Calibri"),
-            Traditional = fp_text(color = "#A6CEE3", font.size = 14, font.family = "Calibri"),
-            DOAC = fp_text(color = "#FDBF6F", font.size = 14, font.family = "Calibri")
-        )
-    ) |>
-    chart_ax_x(major_tick_mark = "in") |>
-    set_theme(my_theme)
 
 services <- c(
     "Thoracic/Cardiac Sur Service" = "CV Surgery",
@@ -374,20 +347,6 @@ df_fig2 <- df_warf_ord |>
         across(consult, ~if_else(., "Pharmacy", "Traditional"))
     ) |>
     count(med_service_order, consult)
-
-p_fig2 <- df_fig2 |>
-    ms_barchart(x = "med_service_order", y = "n", group = "consult") |>
-    chart_settings(var_colors = TRUE, dir = "horizontal", grouping = "stacked", overlap = 100) |>
-    chart_ax_y(num_fmt = "#,##0") |>
-    chart_labels(title = "Warfarin utilization by primary service", ylab = "Patients") |>
-    chart_data_fill(values = chart_colors) |>
-    chart_data_stroke(values = chart_colors) |>
-    chart_ax_x(major_tick_mark = "in") |>
-    set_theme(my_theme) |>
-    chart_theme(
-        title_y_rot = 0,
-        legend_position = "t"
-    )
 
 indications <- c(
     "afib" = "A.fib",
@@ -412,20 +371,6 @@ df_fig3 <- df_demog |>
     ) |>
     count(indication, consult)
 
-p_fig3 <- df_fig3 |>
-    ms_barchart(x = "indication", y = "n", group = "consult") |>
-    chart_settings(var_colors = TRUE, dir = "horizontal", grouping = "stacked", overlap = 100) |>
-    chart_ax_y(num_fmt = "#,##0") |>
-    chart_labels(title = "Warfarin indications", ylab = "Patients") |>
-    chart_data_fill(values = chart_colors) |>
-    chart_data_stroke(values = chart_colors) |>
-    chart_ax_x(major_tick_mark = "in") |>
-    set_theme(my_theme) |>
-    chart_theme(
-        title_y_rot = 0,
-        legend_position = "t"
-    )
-
 df_fig4 <- df_doses_inr |>
     semi_join(tidy_pts, by = "encounter_id") |>
     filter(
@@ -437,23 +382,6 @@ df_fig4 <- df_doses_inr |>
         across(consult, ~if_else(., "Pharmacy", "Traditional"))
         # across(dose, ~coalesce(., 0L))
     )
-
-# med_doses <- df_fig4 |>
-#     # select(warf_day, consult, dose) |>
-#     # filter(!is.na(dose))
-#
-#     group_by(consult, warf_day) |>
-#     mutate(across(dose, ~coalesce(., 0L))) |>
-#     summarize(
-#         across(
-#             dose,
-#             list(
-#                 median = ~median(., na.rm = TRUE),
-#                 q25 = ~quantile(., 0.25, na.rm = TRUE),
-#                 q75 = ~quantile(., 0.75, na.rm = TRUE)
-#             )
-#         )
-#     )
 
 smth_fig4 <- df_fig4 |>
     filter(!is.na(dose)) |>
@@ -467,6 +395,83 @@ smth_fig4 <- df_fig4 |>
     unnest(c(data, fit)) |>
     distinct(consult, warf_day, fit) |>
     arrange(consult, warf_day)
+
+smth_fig5 <- df_fig4 |>
+    filter(!is.na(inr)) |>
+    group_by(consult) |>
+    nest() |>
+    mutate(
+        smth = map(data, loess, formula = inr ~ warf_day),
+        fit = map(smth, `[[`, "fitted")
+    ) |>
+    select(-smth) |>
+    unnest(c(data, fit)) |>
+    distinct(consult, warf_day, fit) |>
+    arrange(consult, warf_day)
+
+# pptx figures ------------------------------------------------------------
+
+my_theme <- mschart_theme(
+    grid_major_line = fp_border(width = 0),
+    date_fmt = "[$-en-US]mmm yyyy;@",
+    main_title = fp_text(color = "#404040", font.size = 24, bold = FALSE, font.family = "Calibri"),
+    axis_title = fp_text(color = "#595959", font.size = 16, bold = FALSE, font.family = "Calibri"),
+    axis_text = fp_text(color = "#7F7F7F", font.size = 14, bold = FALSE, font.family = "Calibri"),
+    legend_position = "n",
+    legend_text = fp_text(color = "#7F7F7F", font.size = 14, bold = FALSE, font.family = "Calibri")
+)
+
+slide_layout <- "Blank"
+slide_master <- "Office Theme"
+chart_colors <- c(Pharmacy = "#1F78B4", Traditional = "#A6CEE3")
+graph_loc <- ph_location(left = 0.67, top = 0.25, width = 12, height = 7)
+
+
+p_fig1 <- df_fig1 |>
+    ms_linechart(x = "med_month", y = "value", group = "key") |>
+    chart_ax_x(num_fmt = "[$-en-US]mmm yy;@") |>
+    chart_ax_y(num_fmt = "#,##0") |>
+    chart_labels(title = "Monthly doses of oral anticoagulants", ylab = "Doses") |>
+    chart_settings(style = "line") |>
+    chart_data_fill(values = c(chart_colors, DOAC = "#FDBF6F")) |>
+    chart_data_stroke(values = c(chart_colors, DOAC = "#FDBF6F")) |>
+    chart_labels_text(
+        values = list(
+            Pharmacy = fp_text(color = "#1F78B4", font.size = 14, font.family = "Calibri"),
+            Traditional = fp_text(color = "#A6CEE3", font.size = 14, font.family = "Calibri"),
+            DOAC = fp_text(color = "#FDBF6F", font.size = 14, font.family = "Calibri")
+        )
+    ) |>
+    chart_ax_x(major_tick_mark = "in") |>
+    set_theme(my_theme)
+
+p_fig2 <- df_fig2 |>
+    ms_barchart(x = "med_service_order", y = "n", group = "consult") |>
+    chart_settings(var_colors = TRUE, dir = "horizontal", grouping = "stacked", overlap = 100) |>
+    chart_ax_y(num_fmt = "#,##0") |>
+    chart_labels(title = "Warfarin utilization by primary service", ylab = "Patients") |>
+    chart_data_fill(values = chart_colors) |>
+    chart_data_stroke(values = chart_colors) |>
+    chart_ax_x(major_tick_mark = "in") |>
+    set_theme(my_theme) |>
+    chart_theme(
+        title_y_rot = 0,
+        legend_position = "t"
+    )
+
+p_fig3 <- df_fig3 |>
+    ms_barchart(x = "indication", y = "n", group = "consult") |>
+    chart_settings(var_colors = TRUE, dir = "horizontal", grouping = "stacked", overlap = 100) |>
+    chart_ax_y(num_fmt = "#,##0") |>
+    chart_labels(title = "Warfarin indications", ylab = "Patients") |>
+    chart_data_fill(values = chart_colors) |>
+    chart_data_stroke(values = chart_colors) |>
+    chart_ax_x(major_tick_mark = "in") |>
+    set_theme(my_theme) |>
+    chart_theme(
+        title_y_rot = 0,
+        legend_position = "t"
+    )
 
 p_fig4 <- smth_fig4 |>
     mutate(across(warf_day, factor)) |>
@@ -484,19 +489,6 @@ p_fig4 <- smth_fig4 |>
     chart_ax_x(major_tick_mark = "in") |>
     set_theme(my_theme)
 
-smth_fig5 <- df_fig4 |>
-    filter(!is.na(inr)) |>
-    group_by(consult) |>
-    nest() |>
-    mutate(
-        smth = map(data, loess, formula = inr ~ warf_day),
-        fit = map(smth, `[[`, "fitted")
-    ) |>
-    select(-smth) |>
-    unnest(c(data, fit)) |>
-    distinct(consult, warf_day, fit) |>
-    arrange(consult, warf_day)
-
 p_fig5 <- smth_fig5 |>
     mutate(across(warf_day, factor)) |>
     ms_linechart(x = "warf_day", y = "fit", group = "consult") |>
@@ -512,11 +504,6 @@ p_fig5 <- smth_fig5 |>
     ) |>
     chart_ax_x(major_tick_mark = "in") |>
     set_theme(my_theme)
-
-
-slide_layout <- "Blank"
-slide_master <- "Office Theme"
-graph_loc <- ph_location(left = 0.67, top = 0.25, width = 12, height = 7)
 
 pptx <- read_pptx("doc/template.pptx") |>
     set_theme(my_theme) |>
