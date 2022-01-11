@@ -423,9 +423,12 @@ my_theme <- mschart_theme(
 
 slide_layout <- "Blank"
 slide_master <- "Office Theme"
-chart_colors <- c(Pharmacy = "#1F78B4", Traditional = "#A6CEE3")
 graph_loc <- ph_location(left = 0.67, top = 0.25, width = 12, height = 7)
 
+pharm_color <- "#1F78B4"
+trad_color <- "#A6CEE3"
+doac_color <- "#FDBF6F"
+chart_colors <- c(Pharmacy = phar_color, Traditional = trad_color)
 
 p_fig1 <- df_fig1 |>
     ms_linechart(x = "med_month", y = "value", group = "key") |>
@@ -433,13 +436,13 @@ p_fig1 <- df_fig1 |>
     chart_ax_y(num_fmt = "#,##0") |>
     chart_labels(title = "Monthly doses of oral anticoagulants", ylab = "Doses") |>
     chart_settings(style = "line") |>
-    chart_data_fill(values = c(chart_colors, DOAC = "#FDBF6F")) |>
-    chart_data_stroke(values = c(chart_colors, DOAC = "#FDBF6F")) |>
+    chart_data_fill(values = c(chart_colors, DOAC = doac_color)) |>
+    chart_data_stroke(values = c(chart_colors, DOAC = doac_color)) |>
     chart_labels_text(
         values = list(
-            Pharmacy = fp_text(color = "#1F78B4", font.size = 14, font.family = "Calibri"),
-            Traditional = fp_text(color = "#A6CEE3", font.size = 14, font.family = "Calibri"),
-            DOAC = fp_text(color = "#FDBF6F", font.size = 14, font.family = "Calibri")
+            Pharmacy = fp_text(color = pharm_color, font.size = 14, font.family = "Calibri"),
+            Traditional = fp_text(color = trad_color, font.size = 14, font.family = "Calibri"),
+            DOAC = fp_text(color = doac_color, font.size = 14, font.family = "Calibri")
         )
     ) |>
     chart_ax_x(major_tick_mark = "in") |>
@@ -448,11 +451,11 @@ p_fig1 <- df_fig1 |>
 p_fig2 <- df_fig2 |>
     ms_barchart(x = "med_service_order", y = "n", group = "consult") |>
     chart_settings(var_colors = TRUE, dir = "horizontal", grouping = "stacked", overlap = 100) |>
-    chart_ax_y(num_fmt = "#,##0") |>
     chart_labels(title = "Warfarin utilization by primary service", ylab = "Patients") |>
     chart_data_fill(values = chart_colors) |>
     chart_data_stroke(values = chart_colors) |>
     chart_ax_x(major_tick_mark = "in") |>
+    chart_ax_y(num_fmt = "#,##0") |>
     set_theme(my_theme) |>
     chart_theme(
         title_y_rot = 0,
@@ -482,8 +485,8 @@ p_fig4 <- smth_fig4 |>
     chart_data_stroke(values = chart_colors) |>
     chart_labels_text(
         values = list(
-            Pharmacy = fp_text(color = "#1F78B4", font.size = 14, font.family = "Calibri"),
-            Traditional = fp_text(color = "#A6CEE3", font.size = 14, font.family = "Calibri")
+            Pharmacy = fp_text(color = pharm_color, font.size = 14, font.family = "Calibri"),
+            Traditional = fp_text(color = trad_color, font.size = 14, font.family = "Calibri")
         )
     ) |>
     chart_ax_x(major_tick_mark = "in") |>
@@ -498,11 +501,12 @@ p_fig5 <- smth_fig5 |>
     chart_data_stroke(values = chart_colors) |>
     chart_labels_text(
         values = list(
-            Pharmacy = fp_text(color = "#1F78B4", font.size = 14, font.family = "Calibri"),
-            Traditional = fp_text(color = "#A6CEE3", font.size = 14, font.family = "Calibri")
+            Pharmacy = fp_text(color = pharm_color, font.size = 14, font.family = "Calibri"),
+            Traditional = fp_text(color = trad_color, font.size = 14, font.family = "Calibri")
         )
     ) |>
     chart_ax_x(major_tick_mark = "in") |>
+    chart_ax_y(limit_min = 1, limit_max = 3) |>
     set_theme(my_theme)
 
 pptx <- read_pptx("doc/template.pptx") |>
