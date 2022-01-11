@@ -428,7 +428,7 @@ graph_loc <- ph_location(left = 0.67, top = 0.25, width = 12, height = 7)
 pharm_color <- "#1F78B4"
 trad_color <- "#A6CEE3"
 doac_color <- "#FDBF6F"
-chart_colors <- c(Pharmacy = phar_color, Traditional = trad_color)
+chart_colors <- c(Pharmacy = pharm_color, Traditional = trad_color)
 
 p_fig1 <- df_fig1 |>
     ms_linechart(x = "med_month", y = "value", group = "key") |>
@@ -445,6 +445,7 @@ p_fig1 <- df_fig1 |>
             DOAC = fp_text(color = doac_color, font.size = 14, font.family = "Calibri")
         )
     ) |>
+    chart_data_line_width(values = c(Pharmacy = 3, Traditional = 2, DOAC = 2)) |>
     chart_ax_x(major_tick_mark = "in") |>
     set_theme(my_theme)
 
@@ -492,25 +493,43 @@ p_fig4 <- smth_fig4 |>
     chart_ax_x(major_tick_mark = "in") |>
     set_theme(my_theme)
 
+fig5_format_data <- tibble(consult = "Goal", warf_day = 0:10, fit = 2)
+    # add_row(consult = "Pharmacy", warf_day = 0) |>
+    # add_row(consult = "Traditional", warf_day = 0)
+
 p_fig5 <- smth_fig5 |>
+    bind_rows(fig5_format_data) |>
     mutate(across(warf_day, factor)) |>
     ms_linechart(x = "warf_day", y = "fit", group = "consult") |>
     chart_settings(style = "line") |>
-    chart_labels(title = "INR response", xlab = "Day of therapy", ylab = "INR") |>
-    chart_data_fill(values = chart_colors) |>
-    chart_data_stroke(values = chart_colors) |>
+    chart_labels(title = "INR response\nINR", xlab = "Day of therapy") |>
+    chart_data_fill(values = c(chart_colors, Goal = "#BFBFBF")) |>
+    chart_data_stroke(values = c(chart_colors, Goal = "#BFBFBF")) |>
+    chart_data_line_style(values = c(Goal = "dashed", Pharmacy = "solid", Traditional = "solid")) |>
+    chart_data_line_width(values = c(Goal = 1.5, Pharmacy = 2, Traditional = 2)) |>
     chart_labels_text(
         values = list(
+            Goal = fp_text(color = "#BFBFBF", font.size = 14, font.family = "Calibri"),
             Pharmacy = fp_text(color = pharm_color, font.size = 14, font.family = "Calibri"),
             Traditional = fp_text(color = trad_color, font.size = 14, font.family = "Calibri")
         )
     ) |>
-    chart_ax_x(major_tick_mark = "in") |>
+    chart_ax_x(major_tick_mark = "in", cross_between = "between") |>
     chart_ax_y(limit_min = 1, limit_max = 3) |>
     set_theme(my_theme)
 
 pptx <- read_pptx("doc/template.pptx") |>
     set_theme(my_theme) |>
+    add_slide(layout = "Title Slide", master = slide_master) %>%
+    ph_with("Pharmacy Warfarin Dosing Service", location = ph_location_label("Title 1")) %>%
+    ph_with(
+        paste(
+            "Analysis for fiscal year",
+            cur_fy,
+            "\nBrian Gulbis, PharmD, BCPS"
+        ),
+        location = ph_location_label("Subtitle 2")
+    ) |>
     add_slide(layout = slide_layout, master = slide_master) |>
     ph_with(value = p_fig1, location = graph_loc) |>
     add_slide(layout = slide_layout, master = slide_master) |>
