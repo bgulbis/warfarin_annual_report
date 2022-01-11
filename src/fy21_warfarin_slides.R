@@ -14,16 +14,16 @@ find_ind <- function(x, reg) {
     stringr::str_detect(x, regex(reg, ignore_case = TRUE))
 }
 
-data_blood <- get_data(data_dir, "raw/blood_products")
+data_blood <- get_data(paste0(data_dir, "/raw"), "blood_products")
 
-data_consult_orders <- get_data(data_dir, "raw/consult_orders") |>
+data_consult_orders <- get_data(paste0(data_dir, "/raw"), "consult_orders") |>
     filter(str_detect(nurse_unit, "^HH|^HVI")) |>
     mutate(
         order_month = floor_date(order_datetime, unit = "month"),
         fiscal_year = year(order_month %m+% months(6))
     )
 
-data_consult_tasks <- get_data(data_dir, "raw/consult_tasks") |>
+data_consult_tasks <- get_data(paste0(data_dir, "/raw"), "consult_tasks") |>
     filter(
         str_detect(nurse_unit, "^HH|^HVI"),
         task_date < ymd(paste(cur_fy, "07-01", sep = "-"))
@@ -33,16 +33,16 @@ data_consult_tasks <- get_data(data_dir, "raw/consult_tasks") |>
         fiscal_year = year(task_month %m+% months(6))
     )
 
-data_demographics <- get_data(data_dir, "raw/demographics")
+data_demographics <- get_data(paste0(data_dir, "/raw"), "demographics")
 
-data_doac_doses <- get_data(data_dir, "raw/doac_doses") |>
+data_doac_doses <- get_data(paste0(data_dir, "/raw"), "doac_doses") |>
     filter(str_detect(nurse_unit, "^HH|^HVI")) |>
     mutate(
         med_month = floor_date(med_datetime, unit = "month"),
         fiscal_year = year(med_month %m+% months(6))
     )
 
-data_labs <- get_data(data_dir, "raw/labs") |>
+data_labs <- get_data(paste0(data_dir, "/raw"), "labs") |>
     mutate(
         censor_high = str_detect(result_value, ">"),
         censor_low = str_detect(result_value, "<"),
@@ -50,12 +50,12 @@ data_labs <- get_data(data_dir, "raw/labs") |>
         across(result_value, as.numeric)
     )
 
-data_measures <- get_data(data_dir, "raw/measures")
-data_reencounters <- get_data(data_dir, "raw/reencounters")
-data_reversal_meds <- get_data(data_dir, "raw/reversal_meds")
-data_warfarin_details <- get_data(data_dir, "raw/warfarin_details")
+data_measures <- get_data(paste0(data_dir, "/raw"), "measures")
+data_reencounters <- get_data(paste0(data_dir, "/raw"), "reencounters")
+data_reversal_meds <- get_data(paste0(data_dir, "/raw"), "reversal_meds")
+data_warfarin_details <- get_data(paste0(data_dir, "/raw"), "warfarin_details")
 
-data_warfarin_doses <- get_data(data_dir, "raw/warfarin_doses") |>
+data_warfarin_doses <- get_data(paste0(data_dir, "/raw"), "warfarin_doses") |>
     filter(str_detect(nurse_unit, "^HH|^HVI")) |>
     mutate(
         med_day = floor_date(med_datetime, unit = "day"),
@@ -63,8 +63,8 @@ data_warfarin_doses <- get_data(data_dir, "raw/warfarin_doses") |>
         fiscal_year = year(med_month %m+% months(6))
     )
 
-data_warfarin_home_meds <- get_data(data_dir, "raw/warfarin_home_meds")
-data_warfarin_orders <- get_data(data_dir, "raw/warfarin_orders")
+data_warfarin_home_meds <- get_data(paste0(data_dir, "/raw"), "warfarin_home_meds")
+data_warfarin_orders <- get_data(paste0(data_dir, "/raw"), "warfarin_orders")
 
 df_indications <- data_warfarin_details |>
     filter(detail == "Warfarin Indication") |>
@@ -317,6 +317,11 @@ df_fig1 <- df_warf_month |>
     inner_join(df_doac_month, by = "med_month") |>
     mutate(traditional = warfarin - consults) |>
     select(-warfarin) |>
+    rename(
+        Pharmacy = consults,
+        DOAC = doac,
+        Traditional = traditional
+    ) |>
     gather(key, value, -med_month) |>
     mutate(
         across(key, as_factor),
@@ -326,14 +331,32 @@ df_fig1 <- df_warf_month |>
 my_theme <- mschart_theme(
     grid_major_line = fp_border(width = 0),
     date_fmt = "[$-en-US]mmm yyyy;@",
-    legend_position = "n"
+    main_title = fp_text(color = "#404040", font.size = 24, bold = FALSE, font.family = "Calibri"),
+    axis_title = fp_text(color = "#595959", font.size = 16, bold = FALSE, font.family = "Calibri"),
+    axis_text = fp_text(color = "#7F7F7F", font.size = 14, bold = FALSE, font.family = "Calibri"),
+    legend_position = "n",
+    legend_text = fp_text(color = "#7F7F7F", font.size = 14, bold = FALSE, font.family = "Calibri")
 )
+
+chart_colors <- c(Pharmacy = "#1F78B4", Traditional = "#A6CEE3")
 
 p_fig1 <- df_fig1 |>
     ms_linechart(x = "med_month", y = "value", group = "key") |>
     chart_ax_x(num_fmt = "[$-en-US]mmm yy;@") |>
     chart_ax_y(num_fmt = "#,##0") |>
-    chart_labels(title = "Monthly doses of oral anticoagulants", ylab = "Doses")
+    chart_labels(title = "Monthly doses of oral anticoagulants", ylab = "Doses") |>
+    chart_settings(style = "line") |>
+    chart_data_fill(values = c(chart_colors, DOAC = "#FDBF6F")) |>
+    chart_data_stroke(values = c(chart_colors, DOAC = "#FDBF6F")) |>
+    chart_labels_text(
+        values = list(
+            Pharmacy = fp_text(color = "#1F78B4", font.size = 14, font.family = "Calibri"),
+            Traditional = fp_text(color = "#A6CEE3", font.size = 14, font.family = "Calibri"),
+            DOAC = fp_text(color = "#FDBF6F", font.size = 14, font.family = "Calibri")
+        )
+    ) |>
+    chart_ax_x(major_tick_mark = "in") |>
+    set_theme(my_theme)
 
 services <- c(
     "Thoracic/Cardiac Sur Service" = "CV Surgery",
@@ -354,11 +377,17 @@ df_fig2 <- df_warf_ord |>
 
 p_fig2 <- df_fig2 |>
     ms_barchart(x = "med_service_order", y = "n", group = "consult") |>
-    chart_settings(var_colors = TRUE, dir = "horizontal", grouping = "stacked") |>
+    chart_settings(var_colors = TRUE, dir = "horizontal", grouping = "stacked", overlap = 100) |>
     chart_ax_y(num_fmt = "#,##0") |>
     chart_labels(title = "Warfarin utilization by primary service", ylab = "Patients") |>
+    chart_data_fill(values = chart_colors) |>
+    chart_data_stroke(values = chart_colors) |>
+    chart_ax_x(major_tick_mark = "in") |>
     set_theme(my_theme) |>
-    chart_theme(title_y_rot = 0)
+    chart_theme(
+        title_y_rot = 0,
+        legend_position = "t"
+    )
 
 indications <- c(
     "afib" = "A.fib",
@@ -385,11 +414,17 @@ df_fig3 <- df_demog |>
 
 p_fig3 <- df_fig3 |>
     ms_barchart(x = "indication", y = "n", group = "consult") |>
-    chart_settings(var_colors = TRUE, dir = "horizontal", grouping = "stacked") |>
+    chart_settings(var_colors = TRUE, dir = "horizontal", grouping = "stacked", overlap = 100) |>
     chart_ax_y(num_fmt = "#,##0") |>
     chart_labels(title = "Warfarin indications", ylab = "Patients") |>
+    chart_data_fill(values = chart_colors) |>
+    chart_data_stroke(values = chart_colors) |>
+    chart_ax_x(major_tick_mark = "in") |>
     set_theme(my_theme) |>
-    chart_theme(title_y_rot = 0)
+    chart_theme(
+        title_y_rot = 0,
+        legend_position = "t"
+    )
 
 df_fig4 <- df_doses_inr |>
     semi_join(tidy_pts, by = "encounter_id") |>
@@ -434,8 +469,20 @@ smth_fig4 <- df_fig4 |>
     arrange(consult, warf_day)
 
 p_fig4 <- smth_fig4 |>
+    mutate(across(warf_day, factor)) |>
     ms_linechart(x = "warf_day", y = "fit", group = "consult") |>
-    chart_labels(title = "Warfarin daily doses", xlab = "Day of therapy", ylab = "Dose (mg)")
+    chart_settings(style = "line") |>
+    chart_labels(title = "Warfarin daily doses", xlab = "Day of therapy", ylab = "Dose (mg)") |>
+    chart_data_fill(values = chart_colors) |>
+    chart_data_stroke(values = chart_colors) |>
+    chart_labels_text(
+        values = list(
+            Pharmacy = fp_text(color = "#1F78B4", font.size = 14, font.family = "Calibri"),
+            Traditional = fp_text(color = "#A6CEE3", font.size = 14, font.family = "Calibri")
+        )
+    ) |>
+    chart_ax_x(major_tick_mark = "in") |>
+    set_theme(my_theme)
 
 smth_fig5 <- df_fig4 |>
     filter(!is.na(inr)) |>
@@ -451,25 +498,38 @@ smth_fig5 <- df_fig4 |>
     arrange(consult, warf_day)
 
 p_fig5 <- smth_fig5 |>
+    mutate(across(warf_day, factor)) |>
     ms_linechart(x = "warf_day", y = "fit", group = "consult") |>
-    chart_labels(title = "INR response", xlab = "Day of therapy", ylab = "INR")
+    chart_settings(style = "line") |>
+    chart_labels(title = "INR response", xlab = "Day of therapy", ylab = "INR") |>
+    chart_data_fill(values = chart_colors) |>
+    chart_data_stroke(values = chart_colors) |>
+    chart_labels_text(
+        values = list(
+            Pharmacy = fp_text(color = "#1F78B4", font.size = 14, font.family = "Calibri"),
+            Traditional = fp_text(color = "#A6CEE3", font.size = 14, font.family = "Calibri")
+        )
+    ) |>
+    chart_ax_x(major_tick_mark = "in") |>
+    set_theme(my_theme)
 
 
 slide_layout <- "Blank"
 slide_master <- "Office Theme"
+graph_loc <- ph_location(left = 0.67, top = 0.25, width = 12, height = 7)
 
 pptx <- read_pptx("doc/template.pptx") |>
     set_theme(my_theme) |>
     add_slide(layout = slide_layout, master = slide_master) |>
-    ph_with(value = p_fig1, location = ph_location(left = 0.5, top = 1, width = 9, height = 6)) |>
+    ph_with(value = p_fig1, location = graph_loc) |>
     add_slide(layout = slide_layout, master = slide_master) |>
-    ph_with(value = p_fig2, location = ph_location(left = 0.5, top = 1, width = 9, height = 6)) |>
+    ph_with(value = p_fig2, location = graph_loc) |>
     add_slide(layout = slide_layout, master = slide_master) |>
-    ph_with(value = p_fig3, location = ph_location(left = 0.5, top = 1, width = 9, height = 6)) |>
+    ph_with(value = p_fig3, location = graph_loc) |>
     add_slide(layout = slide_layout, master = slide_master) |>
-    ph_with(value = p_fig4, location = ph_location(left = 0.5, top = 1, width = 9, height = 6)) |>
+    ph_with(value = p_fig4, location = graph_loc) |>
     add_slide(layout = slide_layout, master = slide_master) |>
-    ph_with(value = p_fig5, location = ph_location(left = 0.5, top = 1, width = 9, height = 6))
+    ph_with(value = p_fig5, location = graph_loc)
 
 print(pptx, target = paste0(data_dir, "report/fy2021_pt_slides.pptx"))
 
