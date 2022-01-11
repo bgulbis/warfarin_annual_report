@@ -26,7 +26,7 @@ data_consult_orders <- get_data(data_dir, "consult_orders") |>
 data_consult_tasks <- get_data(data_dir, "consult_tasks") |>
     filter(
         str_detect(nurse_unit, "^HH|^HVI"),
-        task_date < ymd("2020-07-01")
+        task_date < ymd(paste(cur_fy, "07-01", sep = "-"))
     ) |>
     mutate(
         task_month = floor_date(task_date, unit = "month"),
@@ -42,7 +42,14 @@ data_doac_doses <- get_data(data_dir, "doac_doses") |>
         fiscal_year = year(med_month %m+% months(6))
     )
 
-data_labs <- get_data(data_dir, "labs")
+data_labs <- get_data(data_dir, "labs") |>
+    mutate(
+        censor_high = str_detect(result_value, ">"),
+        censor_low = str_detect(result_value, "<"),
+        across(result_value, str_replace_all, pattern = "<|>", replacement = ""),
+        across(result_value, as.numeric)
+    )
+
 data_measures <- get_data(data_dir, "measures")
 data_reencounters <- get_data(data_dir, "reencounters")
 data_reversal_meds <- get_data(data_dir, "reversal_meds")
@@ -111,44 +118,31 @@ df_inr_goal <- data_warfarin_details |>
         detail == "INR Range",
         result_value != ""
     ) |>
-    mutate(inr_range = result_value) |>
-    mutate_at(
-        "inr_range",
-        str_replace_all,
-        pattern = " |",
-        replacement = ""
-    ) |>
-    mutate_at(
-        "inr_range",
-        str_replace_all,
-        pattern = regex("to|--|/|=|,|-\\.", ignore_case = TRUE),
-        replacement = "-"
-    ) |>
-    mutate_at(
-        "inr_range",
-        str_replace_all,
-        pattern = ">1.5-<2.5",
-        replacement = "1.5-2.5"
-    ) |>
-    mutate_at(
-        "inr_range",
-        str_replace_all,
-        pattern = regex(
-            c(
-                # "^1.[5-9]$" = "1.5-2",
-                "^2$|^2.0$" = "1.5-2.5",
-                "^2\\.[1-4]$" = "2-2.5",
-                "^2.5$" = "2-3",
-                # "^2.[6-9]$" = "2.5-3",
-                "^3$" = "2.5-3.5",
-                # "^3.5$" = "3-4",
-                # "^22" = "2",
-                # "2.53.5" = "2.5-3.5",
-                "^23$" = "2-3",
-                "30$" = "3",
-                "^1-5" = "1.5"
-            ),
-            ignore_case = TRUE
+    mutate(
+        inr_range = result_value,
+        across(inr_range, str_replace_all, pattern = " |", replacement = ""),
+        across(inr_range, str_replace_all, pattern = regex("to|--|/|=|,|-\\.", ignore_case = TRUE), replacement = "-"),
+        across(inr_range, str_replace_all, pattern = ">1.5-<2.5", replacement = "1.5-2.5"),
+        across(
+            inr_range,
+            str_replace_all,
+            pattern = regex(
+                c(
+                    # "^1.[5-9]$" = "1.5-2",
+                    "^2$|^2.0$" = "1.5-2.5",
+                    "^2\\.[1-4]$" = "2-2.5",
+                    "^2.5$" = "2-3",
+                    # "^2.[6-9]$" = "2.5-3",
+                    "^3$" = "2.5-3.5",
+                    # "^3.5$" = "3-4",
+                    # "^22" = "2",
+                    # "2.53.5" = "2.5-3.5",
+                    "^23$" = "2-3",
+                    "30$" = "3",
+                    "^1-5" = "1.5"
+                ),
+                ignore_case = TRUE
+            )
         )
     ) |>
     extract(
@@ -162,7 +156,7 @@ df_inr_goal <- data_warfarin_details |>
         !is.na(goal_low),
         goal_low < goal_high
     ) |>
-    mutate_at(c("goal_low", "goal_high"), as.numeric) |>
+    mutate(across(c(goal_low, goal_high), as.numeric)) |>
     select(-result_value, -inr_range)
 
 df_consult_pts <- data_consult_orders |>
@@ -195,8 +189,8 @@ df_warf_start <- data_warfarin_doses |>
 df_demog <- data_demographics |>
     inner_join(df_warf_start, by = "encounter_id") |>
     left_join(df_consult_pts, by = "encounter_id") |>
-    mutate_at("consult", list(~coalesce(., FALSE))) |>
     mutate(
+        across(consult, ~coalesce(., FALSE)),
         consult_day = difftime(
             consult_date,
             warfarin_start,
@@ -206,7 +200,7 @@ df_demog <- data_demographics |>
 
 df_warf_month <- data_warfarin_doses |>
     count(med_month, name = "warfarin") |>
-    mutate_at("med_month", as_date)
+    mutate(across(med_month, as_date))
 
 df_consult_month <- data_consult_tasks |>
     count(task_month, name = "consults")
@@ -215,7 +209,7 @@ df_doac_month <- data_doac_doses |>
     mutate(med_day = floor_date(med_datetime, unit="day")) |>
     distinct(encounter_id, medication, med_month, med_day) |>
     count(med_month, name = "doac") |>
-    mutate_at("med_month", as_date)
+    mutate(across(med_month, as_date))
 
 df_warf_ord <- data_warfarin_orders |>
     rename(
@@ -226,20 +220,22 @@ df_warf_ord <- data_warfarin_orders |>
     mutate(order_date = floor_date(order_datetime, unit = "day")) |>
     inner_join(df_warf_start, by = c("encounter_id", "order_date" = "warfarin_start")) |>
     left_join(df_consult_pts, by = "encounter_id") |>
-    mutate_at("consult", list(~coalesce(., FALSE)))
+    mutate(across(consult, ~coalesce(., FALSE)))
 
 df_warf_duration <- data_warfarin_doses |>
     arrange(encounter_id, med_datetime) |>
     group_by(encounter_id) |>
-    summarize_at("med_day", list(warfarin_start = first, warfarin_stop = last))
+    summarize(across(med_day, list(warfarin_start = first, warfarin_stop = last), .names = "{.fn}"))
 
 df_doses_daily <- data_warfarin_doses |>
     arrange(encounter_id, med_datetime) |>
     group_by(encounter_id, fiscal_year, med_day) |>
-    summarize_at("dose", sum, na.rm = TRUE) |>
+    summarize(across(dose, sum, na.rm = TRUE), .groups = "drop") |>
     group_by(encounter_id) |>
-    mutate(warf_day = difftime(med_day, first(med_day), units = "days") + 1) |>
-    mutate_at("warf_day", as.integer) |>
+    mutate(
+        warf_day = difftime(med_day, first(med_day), units = "days") + 1,
+        across(warf_day, as.integer)
+    ) |>
     filter(warf_day <= 10) |>
     ungroup() |>
     select(encounter_id, fiscal_year, warf_day, dose)
@@ -251,28 +247,27 @@ df_inr_daily <- df_warf_duration |>
         lab_day = floor_date(lab_datetime, unit = "days"),
         lab_month = floor_date(lab_datetime, unit = "month"),
         warf_day = difftime(lab_day, warfarin_start, units = "days") + 1,
+        across(warf_day, as.integer),
         fiscal_year = year(lab_month %m+% months(6))
     ) |>
-    mutate_at("warf_day", as.integer) |>
     filter(
         lab_day >= warfarin_start,
         lab_day <= warfarin_stop,
         warf_day <= 10
     ) |>
     group_by(encounter_id, fiscal_year, lab_day, warf_day) |>
-    summarize_at("result_value", max, na.rm = TRUE) |>
-    ungroup() |>
+    summarize(across(result_value, max, na.rm = TRUE), .groups = "drop") |>
     select(encounter_id, fiscal_year, warf_day, inr = result_value)
 
 df_consult_daily <- df_warf_duration |>
-    mutate_at(c("warfarin_start", "warfarin_stop"), as_date) |>
+    mutate(across(c(warfarin_start, warfarin_stop), as_date)) |>
     inner_join(data_consult_tasks, by = "encounter_id") |>
     mutate(
         warf_day = difftime(task_date, warfarin_start, units = "days") + 1,
+        across(warf_day, as.integer),
         task_month = floor_date(task_date, unit = "month"),
         fiscal_year = year(task_month %m+% months(6))
     ) |>
-    mutate_at("warf_day", as.integer) |>
     filter(
         task_date >= warfarin_start,
         task_date <= warfarin_stop,
@@ -282,21 +277,15 @@ df_consult_daily <- df_warf_duration |>
     mutate(consult = TRUE)
 
 df_doses_inr <- df_doses_daily |>
-    full_join(
-        df_inr_daily,
-        by = c("encounter_id", "fiscal_year", "warf_day")
-    ) |>
-    full_join(
-        df_consult_daily,
-        by = c("encounter_id", "fiscal_year", "warf_day")
-    ) |>
+    full_join(df_inr_daily, by = c("encounter_id", "fiscal_year", "warf_day")) |>
+    full_join(df_consult_daily, by = c("encounter_id", "fiscal_year", "warf_day")) |>
     arrange(encounter_id, warf_day)
 
 df_group <- df_doses_inr |>
     filter(warf_day < 3) |>
     group_by(encounter_id, fiscal_year) |>
-    summarize_at("consult", sum, na.rm = TRUE) |>
-    mutate_at("consult", list(~. > 0))
+    summarize(across(consult, sum, na.rm = TRUE), .groups = "drop") |>
+    mutate(across(consult, ~. > 0))
 
 df_doses_cnt <- df_doses_inr |>
     group_by(encounter_id, fiscal_year) |>
