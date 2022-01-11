@@ -8,22 +8,22 @@ library(mschart)
 
 cur_fy <- 2021
 
-data_dir <- set_data_path("warfarin_annual_report", "fy21/raw")
+data_dir <- set_data_path("warfarin_annual_report", "fy21")
 
 find_ind <- function(x, reg) {
     stringr::str_detect(x, regex(reg, ignore_case = TRUE))
 }
 
-data_blood <- get_data(data_dir, "blood_products")
+data_blood <- get_data(data_dir, "raw/blood_products")
 
-data_consult_orders <- get_data(data_dir, "consult_orders") |>
+data_consult_orders <- get_data(data_dir, "raw/consult_orders") |>
     filter(str_detect(nurse_unit, "^HH|^HVI")) |>
     mutate(
         order_month = floor_date(order_datetime, unit = "month"),
         fiscal_year = year(order_month %m+% months(6))
     )
 
-data_consult_tasks <- get_data(data_dir, "consult_tasks") |>
+data_consult_tasks <- get_data(data_dir, "raw/consult_tasks") |>
     filter(
         str_detect(nurse_unit, "^HH|^HVI"),
         task_date < ymd(paste(cur_fy, "07-01", sep = "-"))
@@ -33,16 +33,16 @@ data_consult_tasks <- get_data(data_dir, "consult_tasks") |>
         fiscal_year = year(task_month %m+% months(6))
     )
 
-data_demographics <- get_data(data_dir, "demographics")
+data_demographics <- get_data(data_dir, "raw/demographics")
 
-data_doac_doses <- get_data(data_dir, "doac_doses") |>
+data_doac_doses <- get_data(data_dir, "raw/doac_doses") |>
     filter(str_detect(nurse_unit, "^HH|^HVI")) |>
     mutate(
         med_month = floor_date(med_datetime, unit = "month"),
         fiscal_year = year(med_month %m+% months(6))
     )
 
-data_labs <- get_data(data_dir, "labs") |>
+data_labs <- get_data(data_dir, "raw/labs") |>
     mutate(
         censor_high = str_detect(result_value, ">"),
         censor_low = str_detect(result_value, "<"),
@@ -50,12 +50,12 @@ data_labs <- get_data(data_dir, "labs") |>
         across(result_value, as.numeric)
     )
 
-data_measures <- get_data(data_dir, "measures")
-data_reencounters <- get_data(data_dir, "reencounters")
-data_reversal_meds <- get_data(data_dir, "reversal_meds")
-data_warfarin_details <- get_data(data_dir, "warfarin_details")
+data_measures <- get_data(data_dir, "raw/measures")
+data_reencounters <- get_data(data_dir, "raw/reencounters")
+data_reversal_meds <- get_data(data_dir, "raw/reversal_meds")
+data_warfarin_details <- get_data(data_dir, "raw/warfarin_details")
 
-data_warfarin_doses <- get_data(data_dir, "warfarin_doses") |>
+data_warfarin_doses <- get_data(data_dir, "raw/warfarin_doses") |>
     filter(str_detect(nurse_unit, "^HH|^HVI")) |>
     mutate(
         med_day = floor_date(med_datetime, unit = "day"),
@@ -63,8 +63,8 @@ data_warfarin_doses <- get_data(data_dir, "warfarin_doses") |>
         fiscal_year = year(med_month %m+% months(6))
     )
 
-data_warfarin_home_meds <- get_data(data_dir, "warfarin_home_meds")
-data_warfarin_orders <- get_data(data_dir, "warfarin_orders")
+data_warfarin_home_meds <- get_data(data_dir, "raw/warfarin_home_meds")
+data_warfarin_orders <- get_data(data_dir, "raw/warfarin_orders")
 
 df_indications <- data_warfarin_details |>
     filter(detail == "Warfarin Indication") |>
@@ -289,9 +289,7 @@ df_group <- df_doses_inr |>
 
 df_doses_cnt <- df_doses_inr |>
     group_by(encounter_id, fiscal_year) |>
-    summarize(
-        doses_n = sum(!is.na(dose), na.rm = TRUE)
-    )
+    summarize(doses_n = sum(!is.na(dose), na.rm = TRUE), .groups = "drop")
 
 df_doses_3 <- df_doses_cnt |>
     inner_join(df_group, by = c("encounter_id", "fiscal_year")) |>
@@ -311,7 +309,7 @@ df_goal_eq2_3 <- df_inr_goal |>
 
 tidy_pts <- df_doses_3 |>
     left_join(df_goal_eq2_3, by = "encounter_id") |>
-    mutate_at("goal2_3", list(~coalesce(., FALSE))) |>
+    mutate(across(goal2_3, ~coalesce(., FALSE))) |>
     ungroup()
 
 df_fig1 <- df_warf_month |>
@@ -473,6 +471,6 @@ pptx <- read_pptx("doc/template.pptx") |>
     add_slide(layout = slide_layout, master = slide_master) |>
     ph_with(value = p_fig5, location = ph_location(left = 0.5, top = 1, width = 9, height = 6))
 
-print(pptx, target = "report/2020_pt_slides.pptx")
+print(pptx, target = paste0(data_dir, "report/fy2021_pt_slides.pptx"))
 
 
