@@ -5,6 +5,7 @@ library(broom)
 library(mbohelpr)
 library(officer)
 library(mschart)
+library(flextable)
 library(openxlsx)
 
 cur_fy <- 2021
@@ -429,6 +430,137 @@ smth_fig5 <- df_fig4 |>
     distinct(consult, warf_day, fit) |>
     arrange(consult, warf_day)
 
+
+# outcomes and events -----------------------------------------------------
+
+df_high_inr <- df_doses_inr |>
+    filter(inr >= 5) |>
+    distinct(encounter_id) |>
+    mutate(high_inr = TRUE)
+
+df_hgb <- df_warf_duration |>
+    inner_join(data_labs, by = "encounter_id") |>
+    arrange(encounter_id, lab_datetime) |>
+    filter(lab == "Hgb") |>
+    mutate(
+        lab_day = floor_date(lab_datetime, unit = "days"),
+        lab_month = floor_date(lab_datetime, unit = "month"),
+        warf_day = difftime(lab_day, warfarin_start, units = "days") + 1,
+        across(warf_day, as.integer),
+        fiscal_year = year(lab_month %m+% months(6))
+    ) |>
+    filter(
+        lab_day >= warfarin_start,
+        lab_day <= warfarin_stop + 1,
+    )
+
+dt_hgb <- as.data.table(df_hgb)
+
+dt_window <- dt_hgb[, .(
+    encounter_id,
+    window_low = lab_datetime - hours(48),
+    window_high = lab_datetime
+)]
+
+dt_hgb_max <- dt_hgb[
+    dt_window,
+    on=.(
+        encounter_id,
+        lab_datetime >= window_low,
+        lab_datetime <= window_high
+    ),
+    .(max_hgb = max(result_value)),
+    by=.EACHI
+    ][, lab_datetime := NULL
+    ][, head(.SD, 1), by = c("encounter_id", "lab_datetime")]
+
+dt_hgb_drop <- dt_hgb[dt_hgb_max, on=.(encounter_id, lab_datetime)]
+
+df_hgb_drop <- as_tibble(dt_hgb_drop) |>
+    arrange(encounter_id, lab_datetime) |>
+    mutate(hgb_chg = result_value - max_hgb) |>
+    filter(
+        hgb_chg <= -2,
+        warf_day <= 10
+    ) |>
+    distinct(encounter_id) |>
+    mutate(hgb_drop = TRUE)
+
+df_prbc <- data_blood |>
+    inner_join(df_warf_duration, by = "encounter_id") |>
+    filter(
+        str_detect(product, regex("rbc", ignore_case = TRUE)),
+        event_datetime >= warfarin_start,
+        event_datetime <= warfarin_stop
+    ) |>
+    distinct(encounter_id) |>
+    mutate(prbc = TRUE)
+
+df_ffp <- data_blood |>
+    inner_join(df_warf_duration, by = "encounter_id") |>
+    filter(
+        str_detect(product, regex("ffp|plasma", ignore_case = TRUE)),
+        event_datetime >= warfarin_start,
+        event_datetime <= warfarin_stop
+    ) |>
+    distinct(encounter_id) |>
+    mutate(ffp = TRUE)
+
+df_reversal <- data_reversal_meds |>
+    inner_join(df_warf_duration, by = "encounter_id") |>
+    filter(
+        med_datetime >= warfarin_start,
+        med_datetime <= warfarin_stop
+    ) |>
+    distinct(encounter_id) |>
+    mutate(reversal_med = TRUE)
+
+df_dispo <- df_demog |>
+    select(encounter_id, disch_disposition) |>
+    # inner_join(tidy_pts, by = "encounter_id") |>
+    mutate(
+        dispo_group = case_when(
+            str_detect(disch_disposition, "Hospice|Deceased") ~ "Deceased",
+            str_detect(disch_disposition, "Home|Left") ~ "Home",
+            str_detect(disch_disposition, "Facility|REHAB|Care|DC/TF") ~ "Transfer"
+        )
+    )
+
+df_revisit <- df_dispo |>
+    filter(dispo_group == "Home") |>
+    inner_join(data_reencounters, by = "encounter_id") |>
+    distinct(encounter_id) |>
+    mutate(revisit = TRUE)
+
+df_readmit <- df_dispo |>
+    filter(dispo_group == "Home") |>
+    inner_join(data_reencounters, by = "encounter_id") |>
+    filter(readmit_type == "Inpatient") |>
+    distinct(encounter_id) |>
+    mutate(readmit = TRUE)
+
+df_outcomes <- tidy_pts |>
+    left_join(df_dispo, by = "encounter_id") |>
+    left_join(df_high_inr, by = "encounter_id") |>
+    left_join(df_hgb_drop, by = "encounter_id") |>
+    left_join(df_prbc, by = "encounter_id") |>
+    left_join(df_ffp, by = "encounter_id") |>
+    left_join(df_reversal, by = "encounter_id") |>
+    left_join(df_revisit, by = "encounter_id") |>
+    left_join(df_readmit, by = "encounter_id") |>
+    # filter(fiscal_year == cur_fy) |>
+    select(encounter_id, consult, dispo_group, high_inr:readmit) |>
+    mutate(
+        across(c(high_inr:reversal_med), ~coalesce(., FALSE)),
+        across(c(revisit, readmit), ~if_else(dispo_group == "Home", coalesce(., FALSE), .)),
+        across(consult, ~if_else(., "Pharmacy", "Traditional"))
+    ) |>
+    add_count(consult, name = "group_n")
+
+# df_outcomes_cnt <- df_outcomes |>
+#     group_by(consult, group_n) |>
+#     summarize(across(c(high_inr:readmit), sum, na.rm = TRUE), .groups = "drop")
+
 # pptx figures ------------------------------------------------------------
 
 my_theme <- mschart_theme(
@@ -568,6 +700,66 @@ p_fig5 <- smth_fig5 |>
     chart_ax_y(limit_min = 1, limit_max = 3) |>
     set_theme(my_theme)
 
+tbl1_labels <- c(
+    "high_inr" = "High INR",
+    "hgb_drop" = "Hemoglobin drop",
+    "prbc" = "Transfuse PRBC",
+    "ffp" = "Transfuse FFP",
+    "reversal_med" = "Adminster reversal agent"
+    # "revisit" = "Unplanned return*",
+    # "readmit" = "Hospital readmission*"
+)
+
+title_tbl1 <- fpar(ftext("Events during the first 10 days of warfarin therapy", slide_title_format))
+
+tbl1 <- df_outcomes |>
+    select(-group_n) |>
+    group_by(consult) |>
+    summarize(across(c(high_inr:reversal_med), mean, na.rm = TRUE), .groups = "drop") |>
+    pivot_longer(high_inr:reversal_med, names_to = "outcome", values_to = "pct") |>
+    mutate(
+        across(outcome, str_replace_all, pattern = tbl1_labels),
+        across(pct, ~ . * 100),
+        across(pct, round, digits = 0),
+        across(pct, ~str_c(., "%"))
+    ) |>
+    pivot_wider(names_from = "consult", values_from = "pct")
+
+ft1 <- flextable(tbl1) |>
+    set_header_labels(outcome = "Outcome", Pharmacy = "Pharmacy", Traditional = "Traditional") |>
+    theme_alafoli()
+
+df_dispo_pct <- df_outcomes |>
+    add_count(consult, name = "n_group") |>
+    count(consult, dispo_group, n_group, name = "n_dispo") |>
+    mutate(pct_dispo = round(n_dispo / n_group * 100)) |>
+    select(-n_dispo, -n_group) |>
+    pivot_wider(names_from = consult, values_from = pct_dispo) |>
+    rename(outcome = dispo_group)
+
+df_readmit_pct <- df_outcomes |>
+    select(encounter_id, consult, revisit, readmit) |>
+    filter(!is.na(revisit)) |>
+    add_count(consult, name = "n_group") |>
+    group_by(consult, n_group) |>
+    summarize(across(c(revisit, readmit), sum, na.rm = TRUE), .groups = "drop") |>
+    mutate(across(c(revisit, readmit), ~ round(. / n_group * 100))) |>
+    select(-n_group) |>
+    pivot_longer(cols = c(revisit, readmit), names_to = "outcome") |>
+    pivot_wider(names_from = consult, values_from = value)
+
+tbl2_labels <- c(
+    "revisit" = "Unplanned return",
+    "readmit" = "Hospital readmission"
+)
+
+title_tbl2 <- fpar(ftext("Disposition and unplanned return within 30 days", slide_title_format))
+
+tbl2 <- df_dispo_pct |>
+    bind_rows(df_readmit_pct) |>
+    mutate(across(outcome, str_replace_all, pattern = tbl2_labels))
+
+
 pptx <- read_pptx("doc/template.pptx") |>
     set_theme(my_theme) |>
     add_slide(layout = "Title Slide", master = slide_master) |>
@@ -590,7 +782,14 @@ pptx <- read_pptx("doc/template.pptx") |>
     ph_with(value = p_fig4, location = chart_loc) |>
     add_slide(layout = slide_layout, master = slide_master) |>
     ph_with(value = title_fig5, location = title_loc) |>
-    ph_with(value = p_fig5, location = chart_loc)
+    ph_with(value = p_fig5, location = chart_loc) |>
+    add_slide(layout = slide_layout, master = slide_master) |>
+    ph_with(value = title_tbl1, location = title_loc) |>
+    ph_with(value = ft1, location = chart_loc) |>
+    add_slide(layout = slide_layout, master = slide_master) |>
+    ph_with(value = title_tbl2, location = title_loc) |>
+    ph_with(value = tbl2, location = chart_loc)
+
 
 print(pptx, target = paste0(data_dir, "report/fy2021_pt_slides.pptx"))
 
