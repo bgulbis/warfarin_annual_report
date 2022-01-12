@@ -5,6 +5,7 @@ library(broom)
 library(mbohelpr)
 library(officer)
 library(mschart)
+library(openxlsx)
 
 cur_fy <- 2021
 
@@ -383,6 +384,25 @@ df_fig4 <- df_doses_inr |>
         # across(dose, ~coalesce(., 0L))
     )
 
+df_fig4_box <- df_fig4 |>
+    select(encounter_id, warf_day, dose, consult) |>
+    group_by(encounter_id, warf_day, consult) |>
+    summarize(across(dose, sum, na.rm = TRUE), .groups = "drop") |>
+    pivot_wider(names_from = consult, values_from = dose)
+    # mutate(across(warf_day, as.character))
+
+df_fig4_box_pharm <- df_fig4_box |>
+    select(warf_day, Pharmacy) |>
+    filter(!is.na(Pharmacy)) |>
+    arrange(warf_day)
+
+df_fig4_box_trad <- df_fig4_box |>
+    select(warf_day, Traditional) |>
+    filter(!is.na(Traditional)) |>
+    arrange(warf_day)
+
+write.xlsx(df_fig4_box, paste0(data_dir, "final/fig4_boxplot_data.xlsx"), overwrite = TRUE)
+
 smth_fig4 <- df_fig4 |>
     filter(!is.na(dose)) |>
     group_by(consult) |>
@@ -414,27 +434,41 @@ smth_fig5 <- df_fig4 |>
 my_theme <- mschart_theme(
     grid_major_line = fp_border(width = 0),
     date_fmt = "[$-en-US]mmm yyyy;@",
-    main_title = fp_text(color = "#404040", font.size = 24, bold = FALSE, font.family = "Calibri"),
+    # main_title = fp_text(color = "#404040", font.size = 24, bold = FALSE, font.family = "Calibri"),
+    main_title = fp_text(color = "#595959", font.size = 16, bold = FALSE, font.family = "Calibri"),
     axis_title = fp_text(color = "#595959", font.size = 16, bold = FALSE, font.family = "Calibri"),
     axis_text = fp_text(color = "#7F7F7F", font.size = 14, bold = FALSE, font.family = "Calibri"),
     legend_position = "n",
     legend_text = fp_text(color = "#7F7F7F", font.size = 14, bold = FALSE, font.family = "Calibri")
 )
 
-slide_layout <- "Blank"
+slide_layout <- "Title and Chart"
 slide_master <- "Office Theme"
-graph_loc <- ph_location(left = 0.67, top = 0.25, width = 12, height = 7)
 
+# layout_properties(pptx, layout = "Title and Chart")
+# layout_properties(pptx, layout = "Title Slide")
+
+# graph_loc <- ph_location(left = 0.67, top = 0.25, width = 12, height = 7)
+title_loc <- ph_location_label("Title 1")
+chart_loc <- ph_location_label("Content Placeholder 2")
+
+slide_title_format <- fp_text(color = "#404040", font.size = 24, bold = FALSE, font.family = "Calibri")
 pharm_color <- "#1F78B4"
 trad_color <- "#A6CEE3"
 doac_color <- "#FDBF6F"
 chart_colors <- c(Pharmacy = pharm_color, Traditional = trad_color)
 
+fig1_format_data <- tibble(med_month = mdy(paste0("4/1/", cur_fy - 3)), key = "Spacer", value = 0)
+
+title_fig1 <- fpar(ftext("Monthly doses of oral anticoagulants", slide_title_format))
+
 p_fig1 <- df_fig1 |>
+    bind_rows(fig1_format_data) |>
+    mutate(across(key, factor, levels = c("Traditional", "DOAC", "Pharmacy", "Spacer"))) |>
     ms_linechart(x = "med_month", y = "value", group = "key") |>
-    chart_ax_x(num_fmt = "[$-en-US]mmm yy;@") |>
-    chart_ax_y(num_fmt = "#,##0") |>
-    chart_labels(title = "Monthly doses of oral anticoagulants", ylab = "Doses") |>
+    chart_ax_x(num_fmt = "[$-en-US]mmm yy;@", cross_between = "midCat", major_tick_mark = "in", limit_max = mdy(paste0("7/1/", cur_fy))) |>
+    chart_ax_y(num_fmt = "#,##0", major_tick_mark = "none") |>
+    chart_labels(title = "Doses") |>
     chart_settings(style = "line") |>
     chart_data_fill(values = c(chart_colors, DOAC = doac_color)) |>
     chart_data_stroke(values = c(chart_colors, DOAC = doac_color)) |>
@@ -446,42 +480,54 @@ p_fig1 <- df_fig1 |>
         )
     ) |>
     chart_data_line_width(values = c(Pharmacy = 3, Traditional = 2, DOAC = 2)) |>
-    chart_ax_x(major_tick_mark = "in") |>
     set_theme(my_theme)
+
+title_fig2 <- fpar(ftext("Warfarin utilization by primary service", slide_title_format))
 
 p_fig2 <- df_fig2 |>
     ms_barchart(x = "med_service_order", y = "n", group = "consult") |>
     chart_settings(var_colors = TRUE, dir = "horizontal", grouping = "stacked", overlap = 100) |>
-    chart_labels(title = "Warfarin utilization by primary service", ylab = "Patients") |>
+    chart_labels(ylab = "Patients") |>
     chart_data_fill(values = chart_colors) |>
     chart_data_stroke(values = chart_colors) |>
-    chart_ax_x(major_tick_mark = "in") |>
-    chart_ax_y(num_fmt = "#,##0") |>
+    chart_ax_x(major_tick_mark = "none") |>
+    chart_ax_y(num_fmt = "#,##0", major_tick_mark = "in") |>
     set_theme(my_theme) |>
     chart_theme(
         title_y_rot = 0,
         legend_position = "t"
     )
+
+title_fig3 <- fpar(ftext("Warfarin indications", slide_title_format))
 
 p_fig3 <- df_fig3 |>
     ms_barchart(x = "indication", y = "n", group = "consult") |>
     chart_settings(var_colors = TRUE, dir = "horizontal", grouping = "stacked", overlap = 100) |>
-    chart_ax_y(num_fmt = "#,##0") |>
-    chart_labels(title = "Warfarin indications", ylab = "Patients") |>
+    chart_labels(ylab = "Patients") |>
     chart_data_fill(values = chart_colors) |>
     chart_data_stroke(values = chart_colors) |>
-    chart_ax_x(major_tick_mark = "in") |>
+    chart_ax_x(major_tick_mark = "none") |>
+    chart_ax_y(num_fmt = "#,##0", major_tick_mark = "in") |>
     set_theme(my_theme) |>
     chart_theme(
         title_y_rot = 0,
         legend_position = "t"
     )
 
+fig4_format_data <- tibble(consult = "Goal", warf_day = 0, fit = 0)
+
+title_fig4 <- fpar(ftext("Warfarin daily doses", slide_title_format))
+
 p_fig4 <- smth_fig4 |>
-    mutate(across(warf_day, factor)) |>
+    bind_rows(fig4_format_data) |>
+    ungroup() |>
+    mutate(
+        across(consult, factor, levels = c("Goal", "Traditional", "Pharmacy")),
+        across(warf_day, factor)
+    ) |>
     ms_linechart(x = "warf_day", y = "fit", group = "consult") |>
     chart_settings(style = "line") |>
-    chart_labels(title = "Warfarin daily doses", xlab = "Day of therapy", ylab = "Dose (mg)") |>
+    chart_labels(title = "Dose (mg)", xlab = "Day of therapy") |>
     chart_data_fill(values = chart_colors) |>
     chart_data_stroke(values = chart_colors) |>
     chart_labels_text(
@@ -494,15 +540,19 @@ p_fig4 <- smth_fig4 |>
     set_theme(my_theme)
 
 fig5_format_data <- tibble(consult = "Goal", warf_day = 0:10, fit = 2)
-    # add_row(consult = "Pharmacy", warf_day = 0) |>
-    # add_row(consult = "Traditional", warf_day = 0)
+
+title_fig5 <- fpar(ftext("INR response", slide_title_format))
 
 p_fig5 <- smth_fig5 |>
     bind_rows(fig5_format_data) |>
-    mutate(across(warf_day, factor)) |>
+    ungroup() |>
+    mutate(
+        across(consult, factor, levels = c("Goal", "Traditional", "Pharmacy")),
+        across(warf_day, factor)
+    ) |>
     ms_linechart(x = "warf_day", y = "fit", group = "consult") |>
     chart_settings(style = "line") |>
-    chart_labels(title = "INR response\nINR", xlab = "Day of therapy") |>
+    chart_labels(title = "INR", xlab = "Day of therapy") |>
     chart_data_fill(values = c(chart_colors, Goal = "#BFBFBF")) |>
     chart_data_stroke(values = c(chart_colors, Goal = "#BFBFBF")) |>
     chart_data_line_style(values = c(Goal = "dashed", Pharmacy = "solid", Traditional = "solid")) |>
@@ -520,27 +570,27 @@ p_fig5 <- smth_fig5 |>
 
 pptx <- read_pptx("doc/template.pptx") |>
     set_theme(my_theme) |>
-    add_slide(layout = "Title Slide", master = slide_master) %>%
-    ph_with("Pharmacy Warfarin Dosing Service", location = ph_location_label("Title 1")) %>%
+    add_slide(layout = "Title Slide", master = slide_master) |>
+    ph_with("Pharmacy Warfarin Dosing Service", location = title_loc) |>
     ph_with(
-        paste(
-            "Analysis for fiscal year",
-            cur_fy,
-            "\nBrian Gulbis, PharmD, BCPS"
-        ),
+        paste("Analysis for fiscal year", cur_fy, "\nBrian Gulbis, PharmD, BCPS"),
         location = ph_location_label("Subtitle 2")
     ) |>
     add_slide(layout = slide_layout, master = slide_master) |>
-    ph_with(value = p_fig1, location = graph_loc) |>
+    ph_with(value = title_fig1, location = title_loc) |>
+    ph_with(value = p_fig1, location = chart_loc) |>
     add_slide(layout = slide_layout, master = slide_master) |>
-    ph_with(value = p_fig2, location = graph_loc) |>
+    ph_with(value = title_fig2, location = title_loc) |>
+    ph_with(value = p_fig2, location = chart_loc) |>
     add_slide(layout = slide_layout, master = slide_master) |>
-    ph_with(value = p_fig3, location = graph_loc) |>
+    ph_with(value = title_fig3, location = title_loc) |>
+    ph_with(value = p_fig3, location = chart_loc) |>
     add_slide(layout = slide_layout, master = slide_master) |>
-    ph_with(value = p_fig4, location = graph_loc) |>
+    ph_with(value = title_fig4, location = title_loc) |>
+    ph_with(value = p_fig4, location = chart_loc) |>
     add_slide(layout = slide_layout, master = slide_master) |>
-    ph_with(value = p_fig5, location = graph_loc)
+    ph_with(value = title_fig5, location = title_loc) |>
+    ph_with(value = p_fig5, location = chart_loc)
 
 print(pptx, target = paste0(data_dir, "report/fy2021_pt_slides.pptx"))
-
 
