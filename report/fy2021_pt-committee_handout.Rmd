@@ -607,26 +607,39 @@ df_doses_inr |>
         axis.title = element_text(size = 9), 
         axis.text = element_text(size = 8)
     )
+
+
+```
+
+```{r eval=FALSE}
   
-    # mutate_at("warf_day", as_factor) |>
-    # ggplot(aes(x = warf_day, y = dose, fill = consult, color = consult)) +
-    # geom_boxplot(outlier.shape = NA) +
-    # xlab("Day of therapy") +
-    # ylab("Dose (mg)") +
+df_doses_inr |>
+    semi_join(tidy_pts, by = "encounter_id") |>
+    filter(
+        warf_day <= 10,
+        fiscal_year == cur_fy
+    ) |>
+    mutate(
+        across(consult, ~coalesce(., FALSE)),
+        across(warf_day, as_factor)
+    ) |> 
+    ggplot(aes(x = warf_day, y = dose, fill = consult)) + #, color = consult
+    geom_boxplot(outlier.shape = NA) +
+    xlab("Day of therapy") +
+    ylab("Dose (mg)") +
     # scale_color_manual(
     #     NULL,
     #     values = c("grey25", "grey50"),
     #     labels = c("Traditional", "Pharmacy")
-    # ) + 
-    # scale_fill_manual(
-    #     NULL, 
-    #     values = c("grey50", "black"), 
-    #     labels = c("Traditional", "Pharmacy")
     # ) +
-    # coord_cartesian(ylim = c(0, 15)) +
-    # theme_bg_print(base_family = "serif") +
-    # theme(legend.position = "top")
-
+    scale_fill_manual(
+        NULL,
+        values = c("#4daf4a", "#377eb8"),
+        labels = c("Traditional", "Pharmacy")
+    ) +
+    coord_cartesian(ylim = c(0, 15)) +
+    theme_bg_print(base_family = "serif") +
+    theme(legend.position = "top")
 ```
 
 Despite starting with a lower baseline INR, patients managed by the Pharmacy Dosing Service had a greater rise in INR over the first 10 days of therapy, and were more likely to reach an INR around 2 on day 5 (see Figure 5). 
