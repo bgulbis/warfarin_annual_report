@@ -700,34 +700,60 @@ p_fig5 <- smth_fig5 |>
     chart_ax_y(limit_min = 1, limit_max = 3) |>
     set_theme(my_theme)
 
+
+# pptx tables -------------------------------------------------------------
+
+set_flextable_defaults(
+    font.family = "Calibri",
+    font.size = 18,
+    font.color = "#7F7F7F",
+    digits = 0,
+    theme_fun = theme_alafoli
+)
+
 tbl1_labels <- c(
     "high_inr" = "High INR",
     "hgb_drop" = "Hemoglobin drop",
     "prbc" = "Transfuse PRBC",
     "ffp" = "Transfuse FFP",
-    "reversal_med" = "Adminster reversal agent"
+    "reversal_med" = "Administer reversal agent"
     # "revisit" = "Unplanned return*",
     # "readmit" = "Hospital readmission*"
 )
 
 title_tbl1 <- fpar(ftext("Events during the first 10 days of warfarin therapy", slide_title_format))
 
+df_p <- df_outcomes |>
+    mutate(across(c("consult", "dispo_group"), as_factor)) |>
+    summarize(across(c(dispo_group, where(is.logical)), ~chisq.test(consult, .)$p.value)) |>
+    pivot_longer(everything(), names_to = "outcome", values_to = "p_value") |>
+    mutate(across(p_value, round, digits = 3))
+
 tbl1 <- df_outcomes |>
     select(-group_n) |>
     group_by(consult) |>
     summarize(across(c(high_inr:reversal_med), mean, na.rm = TRUE), .groups = "drop") |>
     pivot_longer(high_inr:reversal_med, names_to = "outcome", values_to = "pct") |>
+    pivot_wider(names_from = "consult", values_from = "pct") |>
+    left_join(df_p, by = "outcome") |>
     mutate(
         across(outcome, str_replace_all, pattern = tbl1_labels),
-        across(pct, ~ . * 100),
-        across(pct, round, digits = 0),
-        across(pct, ~str_c(., "%"))
-    ) |>
-    pivot_wider(names_from = "consult", values_from = "pct")
+        across(c(Pharmacy, Traditional), ~ . * 100),
+        across(c(Pharmacy, Traditional), round, digits = 0)
+    )
 
 ft1 <- flextable(tbl1) |>
-    set_header_labels(outcome = "Outcome", Pharmacy = "Pharmacy", Traditional = "Traditional") |>
-    theme_alafoli()
+    set_header_labels(
+        outcome = "Outcome",
+        Pharmacy = "Pharmacy",
+        Traditional = "Traditional",
+        p_value = "P-value"
+    ) |>
+    color(i = ~ p_value < 0.05, color = "#000000") |>
+    colformat_num(j = c("Pharmacy", "Traditional"), suffix = "%") |>
+    width(j = "outcome", width = 4) |>
+    width(j = c("Pharmacy", "Traditional", "p_value"), width = 2) |>
+    height_all(0.7)
 
 df_dispo_pct <- df_outcomes |>
     add_count(consult, name = "n_group") |>
@@ -735,7 +761,8 @@ df_dispo_pct <- df_outcomes |>
     mutate(pct_dispo = round(n_dispo / n_group * 100)) |>
     select(-n_dispo, -n_group) |>
     pivot_wider(names_from = consult, values_from = pct_dispo) |>
-    rename(outcome = dispo_group)
+    rename(outcome = dispo_group) |>
+    arrange(desc(Pharmacy), desc(Traditional))
 
 df_readmit_pct <- df_outcomes |>
     select(encounter_id, consult, revisit, readmit) |>
@@ -749,16 +776,31 @@ df_readmit_pct <- df_outcomes |>
     pivot_wider(names_from = consult, values_from = value)
 
 tbl2_labels <- c(
+    "dispo_group" = "Discharge disposition",
     "revisit" = "Unplanned return",
     "readmit" = "Hospital readmission"
 )
 
 title_tbl2 <- fpar(ftext("Disposition and unplanned return within 30 days", slide_title_format))
 
-tbl2 <- df_dispo_pct |>
-    bind_rows(df_readmit_pct) |>
+tbl2 <- tibble(outcome = "dispo_group") |>
+    bind_rows(df_dispo_pct, df_readmit_pct) |>
+    left_join(df_p, by = "outcome") |>
     mutate(across(outcome, str_replace_all, pattern = tbl2_labels))
 
+ft2 <- flextable(tbl2) |>
+    set_header_labels(
+        outcome = "Outcome",
+        Pharmacy = "Pharmacy",
+        Traditional = "Traditional",
+        p_value = "P-value"
+    ) |>
+    color(i = ~ p_value < 0.05, color = "#000000") |>
+    colformat_num(j = c("Pharmacy", "Traditional"), suffix = "%") |>
+    colformat_char(i = 2:4, j = "outcome", prefix = "    ") |>
+    width(j = "outcome", width = 4) |>
+    width(j = c("Pharmacy", "Traditional", "p_value"), width = 2) |>
+    height_all(0.7)
 
 pptx <- read_pptx("doc/template.pptx") |>
     set_theme(my_theme) |>
@@ -788,8 +830,8 @@ pptx <- read_pptx("doc/template.pptx") |>
     ph_with(value = ft1, location = chart_loc) |>
     add_slide(layout = slide_layout, master = slide_master) |>
     ph_with(value = title_tbl2, location = title_loc) |>
-    ph_with(value = tbl2, location = chart_loc)
+    ph_with(value = ft2, location = chart_loc)
 
 
 print(pptx, target = paste0(data_dir, "report/fy2021_pt_slides.pptx"))
-
+''
