@@ -235,12 +235,23 @@ df_doses_daily <- data_warfarin_doses |>
     summarize(across(dose, sum, na.rm = TRUE), .groups = "drop") |>
     group_by(encounter_id) |>
     mutate(
+        across(med_day, as.Date),
         warf_day = difftime(med_day, first(med_day), units = "days") + 1,
         across(warf_day, as.integer)
     ) |>
     filter(warf_day <= 10) |>
+    select(-med_day) |>
+    group_by(encounter_id, fiscal_year) |>
+    mutate(last_day = last(warf_day)) |>
     ungroup() |>
-    select(encounter_id, fiscal_year, warf_day, dose)
+    pivot_wider(names_from = warf_day, names_prefix = "day_", values_from = dose) |>
+    pivot_longer(starts_with("day_"), names_to = "warf_day", values_to = "dose") |>
+    mutate(
+        across(warf_day, str_replace_all, pattern = "day_", replacement = ""),
+        across(warf_day, as.integer),
+        across(dose, ~coalesce(., 0))
+    ) |>
+    filter(warf_day <= last_day)
 
 df_inr_daily <- df_warf_duration |>
     inner_join(data_labs, by = "encounter_id") |>
@@ -248,6 +259,7 @@ df_inr_daily <- df_warf_duration |>
     mutate(
         lab_day = floor_date(lab_datetime, unit = "days"),
         lab_month = floor_date(lab_datetime, unit = "month"),
+        across(c(lab_day, lab_month, warfarin_start), as_date),
         warf_day = difftime(lab_day, warfarin_start, units = "days") + 1,
         across(warf_day, as.integer),
         fiscal_year = year(lab_month %m+% months(6))
@@ -281,7 +293,11 @@ df_consult_daily <- df_warf_duration |>
 df_doses_inr <- df_doses_daily |>
     full_join(df_inr_daily, by = c("encounter_id", "fiscal_year", "warf_day")) |>
     full_join(df_consult_daily, by = c("encounter_id", "fiscal_year", "warf_day")) |>
-    arrange(encounter_id, warf_day)
+    arrange(encounter_id, warf_day) |>
+    group_by(encounter_id) |>
+    fill(last_day, .direction = "down") |>
+    filter(warf_day <= last_day + 1) |>
+    distinct()
 
 df_group <- df_doses_inr |>
     filter(warf_day < 3) |>
@@ -381,28 +397,94 @@ df_fig4 <- df_doses_inr |>
     ) |>
     mutate(
         across(consult, ~coalesce(., FALSE)),
-        across(consult, ~if_else(., "Pharmacy", "Traditional"))
-        # across(dose, ~coalesce(., 0L))
+        across(consult, ~if_else(., "Pharmacy", "Traditional")),
+        across(warf_day, as_factor)
     )
 
+# gf1 <- df_fig4 |>
+#     ggplot(aes(x = warf_day, y = dose, fill = consult)) + #, color = consult
+#     geom_boxplot(outlier.shape = NA) +
+#     xlab("Day of therapy") +
+#     ylab("Dose (mg)") +
+#     scale_fill_manual(
+#         NULL,
+#         values = c("#4daf4a", "#377eb8"),
+#         labels = c("Traditional", "Pharmacy")
+#     ) +
+#     coord_cartesian(ylim = c(0, 15)) +
+#     themebg::theme_bg_print(base_family = "serif") +
+#     theme(legend.position = "top")
+#
+# set.seed(77123)
+# gf2 <- df_fig4 |>
+#     group_by(consult, warf_day) |>
+#     slice_sample(n = 500) |>
+#     ggplot(aes(x = warf_day, y = dose, fill = consult)) + #, color = consult
+#     geom_boxplot(outlier.shape = NA) +
+#     xlab("Day of therapy") +
+#     ylab("Dose (mg)") +
+#     scale_fill_manual(
+#         NULL,
+#         values = c("#4daf4a", "#377eb8"),
+#         labels = c("Traditional", "Pharmacy")
+#     ) +
+#     coord_cartesian(ylim = c(0, 15)) +
+#     themebg::theme_bg_print(base_family = "serif") +
+#     theme(legend.position = "top")
+
+cnt_fig4 <- df_fig4 |>
+    group_by(encounter_id) |>
+    mutate(first_group = first(consult)) |>
+    count(encounter_id, consult, first_group) |>
+    pivot_wider(names_from = consult, values_from = n) |>
+    mutate(num_doses = sum(Traditional, Pharmacy, na.rm = TRUE)) |>
+    filter(is.na(Traditional) | is.na(Pharmacy))
+
 df_fig4_box <- df_fig4 |>
-    select(encounter_id, warf_day, dose, consult) |>
-    group_by(encounter_id, warf_day, consult) |>
-    summarize(across(dose, sum, na.rm = TRUE), .groups = "drop") |>
-    pivot_wider(names_from = consult, values_from = dose)
+    semi_join(cnt_fig4, by = "encounter_id") |>
+    ungroup() |>
+    # group_by(consult, warf_day) |>
+    # slice_sample(n = 250) |>
+    select(encounter_id, last_day, warf_day, dose, consult)
+    # pivot_wider(names_from = consult, values_from = dose)
     # mutate(across(warf_day, as.character))
 
 df_fig4_box_pharm <- df_fig4_box |>
-    select(warf_day, Pharmacy) |>
-    filter(!is.na(Pharmacy)) |>
-    arrange(warf_day)
+    filter(consult == "Pharmacy") |>
+    pivot_wider(names_from = warf_day, values_from = dose, names_prefix = "day_", names_sort = TRUE) |>
+    rowid_to_column() |>
+    select(-encounter_id) |>
+    pivot_longer(starts_with("day_"), names_to = "warf_day", values_to = "dose") |>
+    mutate(
+        across(warf_day, str_replace_all, pattern = "day_", replacement = ""),
+        across(warf_day, as.numeric)
+    ) |>
+    arrange(rowid, warf_day) |>
+    filter(!is.na(dose)) |>
+    select(rowid, warf_day, pharmacy = dose)
+
 
 df_fig4_box_trad <- df_fig4_box |>
-    select(warf_day, Traditional) |>
-    filter(!is.na(Traditional)) |>
-    arrange(warf_day)
+    filter(consult == "Traditional") |>
+    pivot_wider(names_from = warf_day, values_from = dose, names_prefix = "day_", names_sort = TRUE) |>
+    rowid_to_column() |>
+    select(-encounter_id) |>
+    pivot_longer(starts_with("day_"), names_to = "warf_day", values_to = "dose") |>
+    mutate(
+        across(warf_day, str_replace_all, pattern = "day_", replacement = ""),
+        across(warf_day, as.numeric)
+    ) |>
+    arrange(rowid, warf_day) |>
+    filter(!is.na(dose)) |>
+    select(rowid, warf_day, traditional = dose)
 
-write.xlsx(df_fig4_box, paste0(data_dir, "final/fig4_boxplot_data.xlsx"), overwrite = TRUE)
+df_box_data <- df_fig4_box_pharm |>
+    full_join(df_fig4_box_trad, by = c("rowid", "warf_day")) |>
+    arrange(warf_day) |>
+    mutate(across(warf_day, as.character)) |>
+    select(Day = warf_day, Pharmacy = pharmacy, Traditional = traditional)
+
+write.xlsx(df_box_data, paste0(data_dir, "final/fig4_boxplot_data.xlsx"), overwrite = TRUE)
 
 smth_fig4 <- df_fig4 |>
     filter(!is.na(dose)) |>
